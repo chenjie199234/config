@@ -76,6 +76,19 @@ func (d *Dao) MongoGetCOnfig(ctx context.Context, groupname, appname string, ind
 	return
 }
 func (d *Dao) MongoSetConfig(ctx context.Context, groupname, appname, appconfig, sourceconfig string) (e error) {
+	cursor, e := d.mongo.Database("config_" + groupname).Collection(appname).Indexes().List(ctx)
+	if e != nil {
+		return
+	}
+	if cursor.RemainingBatchLength() == 0 {
+		index := mongo.IndexModel{
+			Keys:    bson.D{primitive.E{Key: "index", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		}
+		if _, e = d.mongo.Database("config_"+groupname).Collection(appname).Indexes().CreateOne(ctx, index); e != nil {
+			return
+		}
+	}
 	var s mongo.Session
 	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
@@ -129,19 +142,9 @@ func (d *Dao) MongoSetConfig(ctx context.Context, groupname, appname, appconfig,
 			return
 		}
 	}
-	filter["index"] = summary.CurIndex + 1
+	filter["index"] = summary.MaxIndex + 1
 	update2 := bson.M{"$set": bson.M{"app_config": appconfig, "source_config": sourceconfig}}
-	if _, e = d.mongo.Database("config_"+groupname).Collection(appname).UpdateOne(sctx, filter, update2, options.Update().SetUpsert(true)); e != nil {
-		return
-	}
-	if summary.MaxIndex != 0 {
-		return
-	}
-	//this is the first time insert need to crete index
-	_, e = d.mongo.Database("config_"+groupname).Collection(appname).Indexes().CreateOne(sctx, mongo.IndexModel{
-		Keys:    bson.D{primitive.E{Key: "index", Value: 1}},
-		Options: options.Index().SetUnique(true),
-	})
+	_, e = d.mongo.Database("config_"+groupname).Collection(appname).UpdateOne(sctx, filter, update2, options.Update().SetUpsert(true))
 	return
 }
 func (d *Dao) MongoRollbackConfig(ctx context.Context, groupname, appname string, index uint32) (bool, error) {

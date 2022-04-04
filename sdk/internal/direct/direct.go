@@ -24,34 +24,37 @@ func NewDirectSdk(selfgroup, selfname string, url string, updateapp, updatesourc
 	}
 	watchfilter := mongo.Pipeline{bson.D{bson.E{Key: "$match", Value: bson.M{"fullDocument.index": 0}}}}
 	watchop := options.ChangeStream().SetFullDocument(options.UpdateLookup)
-	stream, e := client.Database(selfgroup).Collection(selfname).Watch(context.Background(), watchfilter, watchop)
+	stream, e := client.Database("config_"+selfgroup).Collection(selfname).Watch(context.Background(), watchfilter, watchop)
 	if e != nil {
 		return e
 	}
-	col := client.Database(selfgroup, options.Database().SetReadPreference(readpref.Primary()).SetReadConcern(readconcern.Local())).Collection(selfname)
+	col := client.Database("config_"+selfgroup, options.Database().SetReadPreference(readpref.Primary()).SetReadConcern(readconcern.Local())).Collection(selfname)
 	//get first,then watch change stream
 	s := &model.Summary{}
-	c := &model.Config{}
+	c := &model.Config{
+		AppConfig:    "{}",
+		SourceConfig: "{}",
+	}
 	if e = col.FindOne(context.Background(), bson.M{"index": 0}).Decode(s); e != nil && e != mongo.ErrNoDocuments {
 		return e
 	}
 	if s.CurVersion > 0 {
-		if e = client.Database(selfgroup).Collection(selfname).FindOne(context.Background(), bson.M{"index": s.CurIndex}).Decode(c); e != nil {
+		if e = client.Database("config_"+selfgroup).Collection(selfname).FindOne(context.Background(), bson.M{"index": s.CurIndex}).Decode(c); e != nil {
 			return e
 		}
-		if e = updateapp(common.Str2byte(c.AppConfig)); e != nil {
-			return e
-		}
-		if e = updatesource(common.Str2byte(c.SourceConfig)); e != nil {
-			return e
-		}
+	}
+	if e = updateapp(common.Str2byte(c.AppConfig)); e != nil {
+		return e
+	}
+	if e = updatesource(common.Str2byte(c.SourceConfig)); e != nil {
+		return e
 	}
 	go func() {
 		for {
 			for stream == nil {
 				//reconnect
 				time.Sleep(time.Millisecond * 5)
-				if stream, e = client.Database(selfgroup).Collection(selfname).Watch(context.Background(), watchfilter, watchop); e != nil {
+				if stream, e = client.Database("config_"+selfgroup).Collection(selfname).Watch(context.Background(), watchfilter, watchop); e != nil {
 					log.Error(nil, "[config.sdk.watch] reconnect error:", e)
 					stream = nil
 					continue
@@ -92,7 +95,7 @@ func newMongo(url string) (*mongo.Client, error) {
 	op = op.SetMaxPoolSize(2)
 	op = op.SetHeartbeatInterval(time.Second * 5)
 	op = op.SetReadPreference(readpref.SecondaryPreferred())
-	op = op.SetReadConcern(readconcern.Local())
+	op = op.SetReadConcern(readconcern.Majority())
 	db, e := mongo.Connect(context.Background(), op)
 	if e != nil {
 		return nil, e

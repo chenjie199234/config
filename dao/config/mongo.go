@@ -11,20 +11,26 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
-	// "go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func (d *Dao) MongoGetAllGroups(ctx context.Context, searchfilter string) ([]string, error) {
-	return d.mongo.ListDatabaseNames(ctx, bson.M{"name": bson.M{"$regex": searchfilter}})
+	r, e := d.mongo.ListDatabaseNames(ctx, bson.M{"name": bson.M{"$regex": "^config_.*" + searchfilter + ".*"}})
+	if e != nil {
+		return nil, e
+	}
+	for i := range r {
+		r[i] = r[i][7:]
+	}
+	return r, nil
 }
 func (d *Dao) MongoGetAllApps(ctx context.Context, groupname, searchfilter string) ([]string, error) {
-	return d.mongo.Database(groupname).ListCollectionNames(ctx, bson.M{"name": bson.M{"$regex": searchfilter}})
+	return d.mongo.Database("config_"+groupname).ListCollectionNames(ctx, bson.M{"name": bson.M{"$regex": searchfilter}})
 }
 
 //index == 0 get the current index's config
 func (d *Dao) MongoGetCOnfig(ctx context.Context, groupname, appname string, index uint32) (summary *model.Summary, config *model.Config, e error) {
 	if index != 0 {
-		col := d.mongo.Database(groupname, options.Database().SetReadPreference(readpref.Primary()).SetReadConcern(readconcern.Local())).Collection(appname)
+		col := d.mongo.Database("config_"+groupname, options.Database().SetReadPreference(readpref.Primary()).SetReadConcern(readconcern.Local())).Collection(appname)
 		filter := bson.M{"$or": bson.A{bson.M{"index": 0}, bson.M{"index": index}}}
 		var cursor *mongo.Cursor
 		cursor, e = col.Find(ctx, filter, options.Find().SetSort(bson.M{"index": 1}))
@@ -52,7 +58,7 @@ func (d *Dao) MongoGetCOnfig(ctx context.Context, groupname, appname string, ind
 		e = cursor.Err()
 	} else {
 		tmps := &model.Summary{}
-		if e = d.mongo.Database(groupname).Collection(appname).FindOne(ctx, bson.M{"index": 0}).Decode(tmps); e != nil {
+		if e = d.mongo.Database("config_"+groupname).Collection(appname).FindOne(ctx, bson.M{"index": 0}).Decode(tmps); e != nil {
 			if e == mongo.ErrNoDocuments {
 				e = nil
 			}
@@ -61,7 +67,7 @@ func (d *Dao) MongoGetCOnfig(ctx context.Context, groupname, appname string, ind
 		summary = tmps
 		if summary.CurVersion > 0 {
 			tmpc := &model.Config{}
-			if e = d.mongo.Database(groupname).Collection(appname).FindOne(ctx, bson.M{"index": summary.CurIndex}).Decode(tmpc); e != nil {
+			if e = d.mongo.Database("config_"+groupname).Collection(appname).FindOne(ctx, bson.M{"index": summary.CurIndex}).Decode(tmpc); e != nil {
 				return
 			}
 			config = tmpc
@@ -114,7 +120,7 @@ func (d *Dao) MongoSetConfig(ctx context.Context, groupname, appname, appconfig,
 		},
 	}
 	summary := &model.Summary{}
-	r := d.mongo.Database(groupname).Collection(appname).FindOneAndUpdate(sctx, filter, update1, options.FindOneAndUpdate().SetUpsert(true))
+	r := d.mongo.Database("config_"+groupname).Collection(appname).FindOneAndUpdate(sctx, filter, update1, options.FindOneAndUpdate().SetUpsert(true))
 	if r.Err() != nil && r.Err() != mongo.ErrNoDocuments {
 		e = r.Err()
 		return
@@ -125,14 +131,14 @@ func (d *Dao) MongoSetConfig(ctx context.Context, groupname, appname, appconfig,
 	}
 	filter["index"] = summary.CurIndex + 1
 	update2 := bson.M{"$set": bson.M{"app_config": appconfig, "source_config": sourceconfig}}
-	if _, e = d.mongo.Database(groupname).Collection(appname).UpdateOne(sctx, filter, update2, options.Update().SetUpsert(true)); e != nil {
+	if _, e = d.mongo.Database("config_"+groupname).Collection(appname).UpdateOne(sctx, filter, update2, options.Update().SetUpsert(true)); e != nil {
 		return
 	}
 	if summary.MaxIndex != 0 {
 		return
 	}
 	//this is the first time insert need to crete index
-	_, e = d.mongo.Database(groupname).Collection(appname).Indexes().CreateOne(sctx, mongo.IndexModel{
+	_, e = d.mongo.Database("config_"+groupname).Collection(appname).Indexes().CreateOne(sctx, mongo.IndexModel{
 		Keys:    bson.D{primitive.E{Key: "index", Value: 1}},
 		Options: options.Index().SetUnique(true),
 	})
@@ -144,7 +150,7 @@ func (d *Dao) MongoRollbackConfig(ctx context.Context, groupname, appname string
 		"$set": bson.M{"cur_index": index},
 		"$inc": bson.M{"cur_version": 1},
 	}
-	r, e := d.mongo.Database(groupname).Collection(appname).UpdateOne(ctx, filter, update)
+	r, e := d.mongo.Database("config_"+groupname).Collection(appname).UpdateOne(ctx, filter, update)
 	if e != nil {
 		return false, e
 	}

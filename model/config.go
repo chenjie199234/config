@@ -1,11 +1,11 @@
 package model
 
 /*
-| groupname1(database)
+| config_groupname1(database)
 |      appname1(collection)
 |      appname2
 |      appname3
-| groupname2(database)
+| config_groupname2(database)
 |      appnameN(collection)
 */
 //every collection has two kinds of data,they are seprated by index

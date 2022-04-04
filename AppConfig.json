@@ -1,0 +1,21 @@
+{
+	"handler_timeout":{
+		"/config.status/ping":{
+			"GET":"200ms",
+			"CRPC":"200ms",
+			"GRPC":"200ms"
+		}
+	},
+	"handler_rate":[{
+		"Path":"/config.status/ping",
+		"Method":["GET","GRPC","CRPC"],
+		"MaxPerSec":10
+	}],
+	"access_keys":{
+		"default":"default_sec_key",
+		"/config.status/ping":"specific_sec_key"
+	},
+	"service":{
+
+	}
+}

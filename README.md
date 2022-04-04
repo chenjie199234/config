@@ -30,7 +30,6 @@ REMOTE_CONFIG_MONGO_URL                 当CONFIG_TYPE为1时,config的mongodb�
 
 ## 配置文件
 ```
-根据环境变量CONFIG_TYPE的不同,配置文件的路径也不同,详情见环境变量CONFIG_TYPE
 AppConfig.json该文件配置了该服务需要使用的业务配置,可热更新
 SourceConfig.json该文件配置了该服务需要使用的资源配置,不热更新
 ```

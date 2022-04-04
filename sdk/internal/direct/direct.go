@@ -59,6 +59,40 @@ func NewDirectSdk(selfgroup, selfname string, url string, updateapp, updatesourc
 					stream = nil
 					continue
 				}
+				//refresh after reconnect
+				tmps := &model.Summary{}
+				if e = col.FindOne(context.Background(), bson.M{"index": 0}).Decode(tmps); e != nil && e != mongo.ErrNoDocuments {
+					log.Error(nil, "[config.sdk.watch] refresh after reconnect error:", e)
+					stream.Close(context.Background())
+					stream = nil
+					continue
+				}
+				tmpc := &model.Config{
+					AppConfig:    "{}",
+					SourceConfig: "{}",
+				}
+				if tmps.CurVersion > 0 {
+					if e = col.FindOne(context.Background(), bson.M{"index": 0}).Decode(tmpc); e != nil {
+						log.Error(nil, "[config.sdk.watch] refresh after reconnect error:", e)
+						stream.Close(context.Background())
+						stream = nil
+						continue
+					}
+				}
+				if e = updateapp(common.Str2byte(tmpc.AppConfig)); e != nil {
+					log.Error(nil, "[config.sdk.watch] refresh after reconnect error:", e)
+					stream.Close(context.Background())
+					stream = nil
+					continue
+				}
+				if e = updatesource(common.Str2byte(tmpc.SourceConfig)); e != nil {
+					log.Error(nil, "[config.sdk.watch] refresh after reconnect error:", e)
+					stream.Close(context.Background())
+					stream = nil
+					continue
+				}
+				s = tmps
+				c = tmpc
 			}
 			for stream.Next(context.Background()) {
 				tmps := &model.Summary{}
@@ -78,12 +112,16 @@ func NewDirectSdk(selfgroup, selfname string, url string, updateapp, updatesourc
 				c = tmpc
 				if e = updateapp(common.Str2byte(c.AppConfig)); e != nil {
 					log.Error(nil, "[config.sdk.watch] update appconfig error:", e)
+					break
 				}
 				if e = updatesource(common.Str2byte(c.SourceConfig)); e != nil {
 					log.Error(nil, "[config.sdk.watch] update sourceconfig error:", e)
+					break
 				}
 			}
-			log.Error(nil, "[config.sdk.watch] error:", stream.Err())
+			if stream.Err() != nil {
+				log.Error(nil, "[config.sdk.watch] error:", stream.Err())
+			}
 			stream.Close(context.Background())
 			stream = nil
 		}

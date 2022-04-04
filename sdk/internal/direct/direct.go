@@ -96,7 +96,7 @@ func NewDirectSdk(selfgroup, selfname string, url string, updateapp, updatesourc
 				c = tmpc
 			}
 			for stream.Next(context.Background()) {
-				if stream.Current.Lookup("operationType").String() == "delete" {
+				if stream.Current.Lookup("operationType").StringValue() == "delete" {
 					if s.ID.Hex() == stream.Current.Lookup("documentKey").Document().Lookup("_id").ObjectID().Hex() {
 						//delete the summary,need to refresh
 						s.ID = primitive.ObjectID{}

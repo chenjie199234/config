@@ -9,6 +9,7 @@ import (
 	"github.com/chenjie199234/Corelib/log"
 	"github.com/chenjie199234/Corelib/util/common"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
@@ -22,7 +23,7 @@ func NewDirectSdk(selfgroup, selfname string, url string, updateapp, updatesourc
 	if e != nil {
 		return e
 	}
-	watchfilter := mongo.Pipeline{bson.D{bson.E{Key: "$match", Value: bson.M{"fullDocument.index": 0}}}}
+	watchfilter := mongo.Pipeline{bson.D{bson.E{Key: "$match", Value: bson.M{"$or": bson.A{bson.M{"operationType": "delete"}, bson.M{"fullDocument.index": 0}}}}}}
 	watchop := options.ChangeStream().SetFullDocument(options.UpdateLookup)
 	stream, e := client.Database("config_"+selfgroup).Collection(selfname).Watch(context.Background(), watchfilter, watchop)
 	if e != nil {
@@ -95,6 +96,26 @@ func NewDirectSdk(selfgroup, selfname string, url string, updateapp, updatesourc
 				c = tmpc
 			}
 			for stream.Next(context.Background()) {
+				if stream.Current.Lookup("operationType").String() == "delete" {
+					if s.ID.Hex() == stream.Current.Lookup("documentKey").Document().Lookup("_id").ObjectID().Hex() {
+						//delete the summary,need to refresh
+						s.ID = primitive.ObjectID{}
+						s.CurIndex = 0
+						s.MaxIndex = 0
+						s.CurVersion = 0
+						c.AppConfig = "{}"
+						c.SourceConfig = "{}"
+						if e = updateapp(common.Str2byte(c.AppConfig)); e != nil {
+							log.Error(nil, "[config.sdk.watch] update appconfig error:", e)
+							break
+						}
+						if e = updatesource(common.Str2byte(c.SourceConfig)); e != nil {
+							log.Error(nil, "[config.sdk.watch] update sourceconfig error:", e)
+							break
+						}
+					}
+					continue
+				}
 				tmps := &model.Summary{}
 				if e := stream.Current.Lookup("fullDocument").Unmarshal(tmps); e != nil {
 					log.Error(nil, "[config.sdk.watch] summary info broken,error:", e)

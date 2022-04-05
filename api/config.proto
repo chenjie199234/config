@@ -100,10 +100,10 @@ message rollback_resp{
 message watch_req{
 	string groupname=1[(pbex.string_bytes_len_gt)=0];
 	string appname=2[(pbex.string_bytes_len_gt)=0];
-	uint32 cur_version=3;//0 means return current active config,if cur_version is the newest,the request will block until a new version come
+	int32 cur_version=3;//<0 means return current active config,if cur_version is the newest,the request will block until a new version come
 }
 message watch_resp{
 	string app_config=1;
 	string source_config=2;
-	uint32 version=3;
+	int32 version=3;
 }

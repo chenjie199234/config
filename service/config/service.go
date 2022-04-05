@@ -10,6 +10,7 @@ import (
 	configdao "github.com/chenjie199234/config/dao/config"
 	"github.com/chenjie199234/config/ecode"
 
+	cerror "github.com/chenjie199234/Corelib/error"
 	"github.com/chenjie199234/Corelib/log"
 	"github.com/chenjie199234/Corelib/util/common"
 	//"github.com/chenjie199234/Corelib/cgrpc"
@@ -19,12 +20,14 @@ import (
 
 //Service subservice for config business
 type Service struct {
-	configDao *configdao.Dao
-	allapps   map[string]*group
+	configDao  *configdao.Dao
+	noticepool *sync.Pool
+	sync.Mutex
+	groups map[string]*group
 }
 type group struct {
-	sync.RWMutex
-	groupapps map[string]*app
+	sync.Mutex
+	apps map[string]*app
 }
 type app struct {
 	sync.Mutex
@@ -32,7 +35,7 @@ type app struct {
 	notices map[chan *struct{}]*struct{}
 }
 type configdata struct {
-	Version      uint32
+	Version      int32
 	AppConfig    string
 	SoucreConfig string
 }
@@ -40,17 +43,18 @@ type configdata struct {
 //Start -
 func Start() *Service {
 	s := &Service{
-		configDao: configdao.NewDao(config.GetSql("config_sql"), config.GetRedis("config_redis"), config.GetMongo("config_mongo")),
+		configDao:  configdao.NewDao(config.GetSql("config_sql"), config.GetRedis("config_redis"), config.GetMongo("config_mongo")),
+		noticepool: &sync.Pool{},
 	}
-	// if e := s.update(); e != nil {
-	// panic("")
-	// }
+	if e := s.update(); e != nil {
+		panic("")
+	}
 	return s
 }
 
 //
-// func (s *Service) update() error {
-// }
+func (s *Service) update() error {
+}
 
 //get all groups
 func (s *Service) Groups(ctx context.Context, req *api.GroupsReq) (*api.GroupsResp, error) {
@@ -135,12 +139,87 @@ func (s *Service) Rollback(ctx context.Context, req *api.RollbackReq) (*api.Roll
 	return &api.RollbackResp{}, nil
 }
 
+func (s *Service) getnotice() chan *struct{} {
+	ch, ok := s.noticepool.Get().(chan *struct{})
+	if !ok {
+		return make(chan *struct{}, 1)
+	}
+	return ch
+}
+func (s *Service) putnotice(ch chan *struct{}) {
+	s.noticepool.Put(ch)
+}
+
 //watch on specific app's config
 func (s *Service) Watch(ctx context.Context, req *api.WatchReq) (*api.WatchResp, error) {
-	return &api.WatchResp{}, nil
+	s.Lock()
+	g, ok := s.groups[req.Groupname]
+	if !ok {
+		g = &group{}
+		s.groups[req.Groupname] = g
+	}
+	g.Lock()
+	s.Unlock()
+	a, ok := g.apps[req.Appname]
+	if !ok {
+		a = &app{
+			config: &configdata{
+				Version:      0,
+				AppConfig:    "{}",
+				SoucreConfig: "{}",
+			},
+			notices: make(map[chan *struct{}]*struct{}),
+		}
+		g.apps[req.Appname] = a
+	}
+	a.Lock()
+	g.Unlock()
+	if req.CurVersion < 0 || a.config.Version > req.CurVersion {
+		resp := &api.WatchResp{
+			Version:      a.config.Version,
+			AppConfig:    a.config.AppConfig,
+			SourceConfig: a.config.SoucreConfig,
+		}
+		a.Unlock()
+		return resp, nil
+	} else if a.config.Version < req.CurVersion {
+		curversion := a.config.Version
+		a.Unlock()
+		log.Error(ctx, "[Watch] client version:", req.CurVersion, "big then current version:", curversion)
+		return nil, ecode.ErrReq
+	} else {
+		ch := s.getnotice()
+		a.notices[ch] = nil
+		a.Unlock()
+		if _, ok := <-ch; ok {
+			s.putnotice(ch)
+		} else {
+			return nil, cerror.ErrClosing
+		}
+	}
+	a.Lock()
+	resp := &api.WatchResp{
+		Version:      a.config.Version,
+		AppConfig:    a.config.AppConfig,
+		SourceConfig: a.config.SoucreConfig,
+	}
+	a.Unlock()
+	return resp, nil
 }
 
 //Stop -
 func (s *Service) Stop() {
-
+	s.Lock()
+	defer s.Unlock()
+	for _, g := range s.groups {
+		g.Lock()
+		for _, a := range g.apps {
+			a.Lock()
+			for n := range a.notices {
+				close(n)
+			}
+			a.Unlock()
+		}
+		g.Unlock()
+	}
 }

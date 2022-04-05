@@ -46,15 +46,15 @@ func Start() *Service {
 		configDao:  configdao.NewDao(config.GetSql("config_sql"), config.GetRedis("config_redis"), config.GetMongo("config_mongo")),
 		noticepool: &sync.Pool{},
 	}
-	if e := s.update(); e != nil {
-		panic("")
-	}
+	// if e := s.update(); e != nil {
+	// panic("")
+	// }
 	return s
 }
 
 //
-func (s *Service) update() error {
-}
+// func (s *Service) update() error {
+// }
 
 //get all groups
 func (s *Service) Groups(ctx context.Context, req *api.GroupsReq) (*api.GroupsResp, error) {

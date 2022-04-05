@@ -14,12 +14,15 @@ import (
 
 var status int32
 
+//url format [mongodb/mongodb+srv]://[username:password@]host1,...,hostN[/dbname][?param1=value1&...&paramN=valueN]
 func NewDirectSdk(selfgroup, selfname string, url string) error {
 	if atomic.CompareAndSwapInt32(&status, 0, 1) {
 		return direct.NewDirectSdk(selfgroup, selfname, url, updateApp, updateSource)
 	}
 	return nil
 }
+
+//configservicehost format [http/https]://[username[:password]@]the.host.name[:port]
 func NewServiceSdk(selfgroup, selfname, configservicegroup, configservicehost string) error {
 	if atomic.CompareAndSwapInt32(&status, 0, 2) {
 		return service.NewServiceSdk(selfgroup, selfname, configservicegroup, configservicehost)

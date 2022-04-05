@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/chenjie199234/config/sdk/internal/direct"
+	"github.com/chenjie199234/config/sdk/internal/service"
 
 	"github.com/chenjie199234/Corelib/log"
 )
@@ -16,6 +17,12 @@ var status int32
 func NewDirectSdk(selfgroup, selfname string, url string) error {
 	if atomic.CompareAndSwapInt32(&status, 0, 1) {
 		return direct.NewDirectSdk(selfgroup, selfname, url, updateApp, updateSource)
+	}
+	return nil
+}
+func NewServiceSdk(selfgroup, selfname, configservicegroup, configservicehost string) error {
+	if atomic.CompareAndSwapInt32(&status, 0, 2) {
+		return service.NewServiceSdk(selfgroup, selfname, configservicegroup, configservicehost)
 	}
 	return nil
 }

@@ -24,6 +24,7 @@ var _WebPathConfigApps = "/config.config/apps"
 var _WebPathConfigGet = "/config.config/get"
 var _WebPathConfigSet = "/config.config/set"
 var _WebPathConfigRollback = "/config.config/rollback"
+var _WebPathConfigWatch = "/config.config/watch"
 
 type ConfigWebClient interface {
 	//get all groups
@@ -36,6 +37,8 @@ type ConfigWebClient interface {
 	Set(context.Context, *SetReq, http.Header) (*SetResp, error)
 	//rollback one specific app's config
 	Rollback(context.Context, *RollbackReq, http.Header) (*RollbackResp, error)
+	//watch on specific app's config
+	Watch(context.Context, *WatchReq, http.Header) (*WatchResp, error)
 }
 
 type configWebClient struct {
@@ -161,6 +164,29 @@ func (c *configWebClient) Rollback(ctx context.Context, req *RollbackReq, header
 	}
 	return resp, nil
 }
+func (c *configWebClient) Watch(ctx context.Context, req *WatchReq, header http.Header) (*WatchResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	if header == nil {
+		header = make(http.Header)
+	}
+	header.Set("Content-Type", "application/x-protobuf")
+	header.Set("Accept", "application/x-protobuf")
+	reqd, _ := proto.Marshal(req)
+	data, e := c.cc.Post(ctx, _WebPathConfigWatch, "", header, metadata.GetMetadata(ctx), reqd)
+	if e != nil {
+		return nil, e
+	}
+	resp := new(WatchResp)
+	if len(data) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(data, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
 
 type ConfigWebServer interface {
 	//get all groups
@@ -173,6 +199,8 @@ type ConfigWebServer interface {
 	Set(context.Context, *SetReq) (*SetResp, error)
 	//rollback one specific app's config
 	Rollback(context.Context, *RollbackReq) (*RollbackResp, error)
+	//watch on specific app's config
+	Watch(context.Context, *WatchReq) (*WatchResp, error)
 }
 
 func _Config_Groups_WebHandler(handler func(context.Context, *GroupsReq) (*GroupsResp, error)) web.OutsideHandler {
@@ -640,6 +668,102 @@ func _Config_Rollback_WebHandler(handler func(context.Context, *RollbackReq) (*R
 		}
 	}
 }
+func _Config_Watch_WebHandler(handler func(context.Context, *WatchReq) (*WatchResp, error)) web.OutsideHandler {
+	return func(ctx *web.Context) {
+		req := new(WatchReq)
+		if strings.HasPrefix(ctx.GetContentType(), "application/json") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else if strings.HasPrefix(ctx.GetContentType(), "application/x-protobuf") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				if e := proto.Unmarshal(data, req); e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else {
+			if e := ctx.ParseForm(); e != nil {
+				ctx.Abort(error1.ErrReq)
+				return
+			}
+			data := pool.GetBuffer()
+			defer pool.PutBuffer(data)
+			data.AppendByte('{')
+			data.AppendString("\"groupname\":")
+			if form := ctx.GetForm("groupname"); len(form) == 0 {
+				data.AppendString("\"\"")
+			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
+				data.AppendByte('"')
+				data.AppendString(form)
+				data.AppendByte('"')
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte(',')
+			data.AppendString("\"appname\":")
+			if form := ctx.GetForm("appname"); len(form) == 0 {
+				data.AppendString("\"\"")
+			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
+				data.AppendByte('"')
+				data.AppendString(form)
+				data.AppendByte('"')
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte(',')
+			data.AppendString("\"cur_version\":")
+			if form := ctx.GetForm("cur_version"); len(form) == 0 {
+				data.AppendString("0")
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte('}')
+			if data.Len() > 2 {
+				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.config/watch]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		ee := error1.ConvertStdError(e)
+		if ee != nil {
+			ctx.Abort(ee)
+			return
+		}
+		if resp == nil {
+			resp = new(WatchResp)
+		}
+		if strings.HasPrefix(ctx.GetAcceptType(), "application/x-protobuf") {
+			respd, _ := proto.Marshal(resp)
+			ctx.Write("application/x-protobuf", respd)
+		} else {
+			respd, _ := protojson.MarshalOptions{UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			ctx.Write("application/json", respd)
+		}
+	}
+}
 func RegisterConfigWebServer(engine *web.WebServer, svc ConfigWebServer, allmids map[string]web.OutsideHandler) {
 	//avoid lint
 	_ = allmids
@@ -648,4 +772,5 @@ func RegisterConfigWebServer(engine *web.WebServer, svc ConfigWebServer, allmids
 	engine.Post(_WebPathConfigGet, _Config_Get_WebHandler(svc.Get))
 	engine.Post(_WebPathConfigSet, _Config_Set_WebHandler(svc.Set))
 	engine.Post(_WebPathConfigRollback, _Config_Rollback_WebHandler(svc.Rollback))
+	engine.Post(_WebPathConfigWatch, _Config_Watch_WebHandler(svc.Watch))
 }

@@ -19,6 +19,7 @@ var _CGrpcPathConfigApps = "/config.config/apps"
 var _CGrpcPathConfigGet = "/config.config/get"
 var _CGrpcPathConfigSet = "/config.config/set"
 var _CGrpcPathConfigRollback = "/config.config/rollback"
+var _CGrpcPathConfigWatch = "/config.config/watch"
 
 type ConfigCGrpcClient interface {
 	//get all groups
@@ -31,6 +32,8 @@ type ConfigCGrpcClient interface {
 	Set(context.Context, *SetReq) (*SetResp, error)
 	//rollback one specific app's config
 	Rollback(context.Context, *RollbackReq) (*RollbackResp, error)
+	//watch on specific app's config
+	Watch(context.Context, *WatchReq) (*WatchResp, error)
 }
 
 type configCGrpcClient struct {
@@ -91,6 +94,16 @@ func (c *configCGrpcClient) Rollback(ctx context.Context, req *RollbackReq) (*Ro
 	}
 	return resp, nil
 }
+func (c *configCGrpcClient) Watch(ctx context.Context, req *WatchReq) (*WatchResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	resp := new(WatchResp)
+	if e := c.cc.Call(ctx, _CGrpcPathConfigWatch, req, resp, metadata.GetMetadata(ctx)); e != nil {
+		return nil, e
+	}
+	return resp, nil
+}
 
 type ConfigCGrpcServer interface {
 	//get all groups
@@ -103,6 +116,8 @@ type ConfigCGrpcServer interface {
 	Set(context.Context, *SetReq) (*SetResp, error)
 	//rollback one specific app's config
 	Rollback(context.Context, *RollbackReq) (*RollbackResp, error)
+	//watch on specific app's config
+	Watch(context.Context, *WatchReq) (*WatchResp, error)
 }
 
 func _Config_Groups_CGrpcHandler(handler func(context.Context, *GroupsReq) (*GroupsResp, error)) cgrpc.OutsideHandler {
@@ -215,6 +230,29 @@ func _Config_Rollback_CGrpcHandler(handler func(context.Context, *RollbackReq) (
 		ctx.Write(resp)
 	}
 }
+func _Config_Watch_CGrpcHandler(handler func(context.Context, *WatchReq) (*WatchResp, error)) cgrpc.OutsideHandler {
+	return func(ctx *cgrpc.Context) {
+		req := new(WatchReq)
+		if ctx.DecodeReq(req) != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.config/watch]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(WatchResp)
+		}
+		ctx.Write(resp)
+	}
+}
 func RegisterConfigCGrpcServer(engine *cgrpc.CGrpcServer, svc ConfigCGrpcServer, allmids map[string]cgrpc.OutsideHandler) {
 	//avoid lint
 	_ = allmids
@@ -223,4 +261,5 @@ func RegisterConfigCGrpcServer(engine *cgrpc.CGrpcServer, svc ConfigCGrpcServer,
 	engine.RegisterHandler("config.config", "get", _Config_Get_CGrpcHandler(svc.Get))
 	engine.RegisterHandler("config.config", "set", _Config_Set_CGrpcHandler(svc.Set))
 	engine.RegisterHandler("config.config", "rollback", _Config_Rollback_CGrpcHandler(svc.Rollback))
+	engine.RegisterHandler("config.config", "watch", _Config_Watch_CGrpcHandler(svc.Watch))
 }

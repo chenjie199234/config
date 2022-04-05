@@ -20,6 +20,7 @@ var _CrpcPathConfigApps = "/config.config/apps"
 var _CrpcPathConfigGet = "/config.config/get"
 var _CrpcPathConfigSet = "/config.config/set"
 var _CrpcPathConfigRollback = "/config.config/rollback"
+var _CrpcPathConfigWatch = "/config.config/watch"
 
 type ConfigCrpcClient interface {
 	//get all groups
@@ -32,6 +33,8 @@ type ConfigCrpcClient interface {
 	Set(context.Context, *SetReq) (*SetResp, error)
 	//rollback one specific app's config
 	Rollback(context.Context, *RollbackReq) (*RollbackResp, error)
+	//watch on specific app's config
+	Watch(context.Context, *WatchReq) (*WatchResp, error)
 }
 
 type configCrpcClient struct {
@@ -132,6 +135,24 @@ func (c *configCrpcClient) Rollback(ctx context.Context, req *RollbackReq) (*Rol
 	}
 	return resp, nil
 }
+func (c *configCrpcClient) Watch(ctx context.Context, req *WatchReq) (*WatchResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	reqd, _ := proto.Marshal(req)
+	respd, e := c.cc.Call(ctx, _CrpcPathConfigWatch, reqd, metadata.GetMetadata(ctx))
+	if e != nil {
+		return nil, e
+	}
+	resp := new(WatchResp)
+	if len(respd) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(respd, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
 
 type ConfigCrpcServer interface {
 	//get all groups
@@ -144,6 +165,8 @@ type ConfigCrpcServer interface {
 	Set(context.Context, *SetReq) (*SetResp, error)
 	//rollback one specific app's config
 	Rollback(context.Context, *RollbackReq) (*RollbackResp, error)
+	//watch on specific app's config
+	Watch(context.Context, *WatchReq) (*WatchResp, error)
 }
 
 func _Config_Groups_CrpcHandler(handler func(context.Context, *GroupsReq) (*GroupsResp, error)) crpc.OutsideHandler {
@@ -261,6 +284,30 @@ func _Config_Rollback_CrpcHandler(handler func(context.Context, *RollbackReq) (*
 		ctx.Write(respd)
 	}
 }
+func _Config_Watch_CrpcHandler(handler func(context.Context, *WatchReq) (*WatchResp, error)) crpc.OutsideHandler {
+	return func(ctx *crpc.Context) {
+		req := new(WatchReq)
+		if e := proto.Unmarshal(ctx.GetBody(), req); e != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.config/watch]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(WatchResp)
+		}
+		respd, _ := proto.Marshal(resp)
+		ctx.Write(respd)
+	}
+}
 func RegisterConfigCrpcServer(engine *crpc.CrpcServer, svc ConfigCrpcServer, allmids map[string]crpc.OutsideHandler) {
 	//avoid lint
 	_ = allmids
@@ -269,4 +316,5 @@ func RegisterConfigCrpcServer(engine *crpc.CrpcServer, svc ConfigCrpcServer, all
 	engine.RegisterHandler(_CrpcPathConfigGet, _Config_Get_CrpcHandler(svc.Get))
 	engine.RegisterHandler(_CrpcPathConfigSet, _Config_Set_CrpcHandler(svc.Set))
 	engine.RegisterHandler(_CrpcPathConfigRollback, _Config_Rollback_CrpcHandler(svc.Rollback))
+	engine.RegisterHandler(_CrpcPathConfigWatch, _Config_Watch_CrpcHandler(svc.Watch))
 }

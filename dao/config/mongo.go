@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/chenjie199234/config/model"
 
@@ -161,4 +162,19 @@ func (d *Dao) MongoRollbackConfig(ctx context.Context, groupname, appname string
 		return false, nil
 	}
 	return true, nil
+}
+func (d *Dao) MongoWatchAll() error {
+	watchfilter := mongo.Pipeline{bson.D{}}
+	stream, e := d.mongo.Watch(context.Background(), watchfilter, options.ChangeStream().SetFullDocument(options.UpdateLookup))
+	if e != nil {
+		return e
+	}
+	for {
+		for stream == nil {
+			//reconnect
+		}
+		for stream.Next(context.Background()) {
+			fmt.Println(stream.Current.String())
+		}
+	}
 }

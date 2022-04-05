@@ -18,14 +18,14 @@ config是一个微服务.
 
 ## 环境变量
 ```
-GROUP                                   该项目所属的group(k8s的namespace),如果不使用k8s需要手动指定,如果使用k8s无需手动指定,请查看项目根目录的deployment.yaml
+GROUP                                   该项目所属的group(k8s的namespace),如果不使用k8s需要手动指定,如果使用k8s,需修改项目根目录的deployment.yaml中的<GROUP>
 RUN_ENV                                 当前运行环境,如:test,pre,prod
-DEPLOY_ENV                              部署环境,如:ali-kube,ali-host
+DEPLOY_ENV                              部署环境,如:ali-kube-shanghai-1,ali-host-hangzhou-1
 MONITOR                                 是否开启系统监控采集,0关闭,1开启
 CONFIG_TYPE                             配置类型
                                         0-使用本地配置
                                         1-监听config数据库
-REMOTE_CONFIG_MONGO_URL                 当CONFIG_TYPE为1时,config的mongodb链接url,[mongodb/mongodb+srv]://[username:password@]host1,...,hostN[/dbname][?param1=value1&...&paramN=valueN]
+REMOTE_CONFIG_MONGO_URL                 当CONFIG_TYPE为1时,配置中心mongodb的url,[mongodb/mongodb+srv]://[username:password@]host1,...,hostN[/dbname][?param1=value1&...&paramN=valueN]
 ```
 
 ## 配置文件

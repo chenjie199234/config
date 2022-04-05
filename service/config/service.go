@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"sync"
 
 	"github.com/chenjie199234/config/api"
 	"github.com/chenjie199234/config/config"
@@ -19,14 +20,37 @@ import (
 //Service subservice for config business
 type Service struct {
 	configDao *configdao.Dao
+	allapps   map[string]*group
+}
+type group struct {
+	sync.RWMutex
+	groupapps map[string]*app
+}
+type app struct {
+	sync.Mutex
+	config  *configdata
+	notices map[chan *struct{}]*struct{}
+}
+type configdata struct {
+	Version      uint32
+	AppConfig    string
+	SoucreConfig string
 }
 
 //Start -
 func Start() *Service {
-	return &Service{
+	s := &Service{
 		configDao: configdao.NewDao(config.GetSql("config_sql"), config.GetRedis("config_redis"), config.GetMongo("config_mongo")),
 	}
+	// if e := s.update(); e != nil {
+	// panic("")
+	// }
+	return s
 }
+
+//
+// func (s *Service) update() error {
+// }
 
 //get all groups
 func (s *Service) Groups(ctx context.Context, req *api.GroupsReq) (*api.GroupsResp, error) {
@@ -109,6 +133,11 @@ func (s *Service) Rollback(ctx context.Context, req *api.RollbackReq) (*api.Roll
 		return nil, ecode.ErrReq
 	}
 	return &api.RollbackResp{}, nil
+}
+
+//watch on specific app's config
+func (s *Service) Watch(ctx context.Context, req *api.WatchReq) (*api.WatchResp, error) {
+	return &api.WatchResp{}, nil
 }
 
 //Stop -

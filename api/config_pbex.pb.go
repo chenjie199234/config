@@ -49,3 +49,14 @@ func (m *RollbackReq) Validate() (errstr string) {
 	}
 	return ""
 }
+
+//return empty means pass
+func (m *WatchReq) Validate() (errstr string) {
+	if len(m.GetGroupname()) <= 0 {
+		return "field: groupname in object: watch_req check value str len gt failed"
+	}
+	if len(m.GetAppname()) <= 0 {
+		return "field: appname in object: watch_req check value str len gt failed"
+	}
+	return ""
+}

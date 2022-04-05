@@ -2,7 +2,7 @@
 // version:
 // 	protoc-gen-pbex v0.0.1
 // 	protoc         v3.19.4
-// source: api/status_config.proto
+// source: api/status.proto
 
 package api
 

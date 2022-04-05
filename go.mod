@@ -3,7 +3,7 @@ module github.com/chenjie199234/config
 go 1.18
 
 require (
-	github.com/chenjie199234/Corelib v0.0.51
+	github.com/chenjie199234/Corelib v0.0.53
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/segmentio/kafka-go v0.4.31
 	go.mongodb.org/mongo-driver v1.8.4

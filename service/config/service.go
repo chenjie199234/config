@@ -191,10 +191,15 @@ func (s *Service) Watch(ctx context.Context, req *api.WatchReq) (*api.WatchResp,
 		ch := s.getnotice()
 		a.notices[ch] = nil
 		a.Unlock()
-		if _, ok := <-ch; ok {
-			s.putnotice(ch)
-		} else {
-			return nil, cerror.ErrClosing
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case _, ok := <-ch:
+			if ok {
+				s.putnotice(ch)
+			} else {
+				return nil, cerror.ErrClosing
+			}
 		}
 	}
 	a.Lock()

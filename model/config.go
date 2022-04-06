@@ -25,3 +25,11 @@ type Config struct {
 	AppConfig    string `bson:"app_config"`
 	SourceConfig string `bson:"source_config"`
 }
+type Current struct {
+	ID           string //summary's ID
+	GroupName    string
+	AppName      string
+	CurVersion   uint32
+	AppConfig    string
+	SourceConfig string
+}

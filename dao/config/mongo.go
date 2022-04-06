@@ -204,36 +204,7 @@ func (d *Dao) MongoWatchConfig(init WatchInitHandler, update WatchUpdateHandler,
 				delA(groupname, appname)
 			case "insert":
 				//insert document
-				groupname := stream.Current.Lookup("ns").Document().Lookup("db").StringValue()[7:]
-				appname := stream.Current.Lookup("ns").Document().Lookup("coll").StringValue()
-				index, ok := stream.Current.Lookup("fullDocument").Document().Lookup("index").Int32OK()
-				if !ok {
-					//unknown doc
-					continue
-				}
-				if index != 0 {
-					//this is not the summary
-					continue
-				}
-				//this is the summary
-				s := &model.Summary{}
-				if e := stream.Current.Lookup("fullDocument").Unmarshal(s); e != nil {
-					log.Error(nil, "[dao.MongoWatchConfig] group:", groupname, "app:", appname, "summary data broken:", e)
-					continue
-				}
-				c := &model.Config{}
-				if e := d.mongo.Database("config_"+groupname).Collection(appname).FindOne(context.Background(), bson.M{"index": s.CurIndex}).Decode(c); e != nil {
-					log.Error(nil, "[dao.MongoWatchConfig] group:", groupname, "app:", appname, "index:", s.CurIndex, "config data broken:", e)
-					continue
-				}
-				update(&model.Current{
-					ID:           s.ID.Hex(),
-					GroupName:    groupname,
-					AppName:      appname,
-					CurVersion:   s.CurVersion,
-					AppConfig:    c.AppConfig,
-					SourceConfig: c.SourceConfig,
-				})
+				fallthrough
 			case "update":
 				//update document
 				groupname := stream.Current.Lookup("ns").Document().Lookup("db").StringValue()[7:]

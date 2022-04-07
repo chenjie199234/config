@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/chenjie199234/Corelib v0.0.57
 	github.com/fsnotify/fsnotify v1.5.1
+	github.com/go-sql-driver/mysql v1.6.0
 	github.com/segmentio/kafka-go v0.4.31
 	go.mongodb.org/mongo-driver v1.8.4
 	google.golang.org/protobuf v1.28.0

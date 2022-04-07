@@ -63,12 +63,14 @@ func (s *Service) delgroup(groupname string) {
 		a.config.CurVersion = 0
 		a.config.AppConfig = "{}"
 		a.config.SourceConfig = "{}"
-		for notice := range a.notices {
-			notice <- nil
-		}
 		if len(a.notices) == 0 {
 			//if there are no watchers,clean right now
 			delete(g, a.config.AppName)
+		} else {
+			//if there are watchers,clean will happened when watcher return
+			for notice := range a.notices {
+				notice <- nil
+			}
 		}
 		a.Unlock()
 	}
@@ -93,14 +95,16 @@ func (s *Service) delapp(groupname, appname string) {
 	a.config.CurVersion = 0
 	a.config.AppConfig = "{}"
 	a.config.SourceConfig = "{}"
-	for notice := range a.notices {
-		notice <- nil
-	}
 	if len(a.notices) == 0 {
 		//if there are no watchers,clean right now
 		delete(g, a.config.AppName)
 		if len(g) == 0 {
 			delete(s.apps, groupname)
+		}
+	} else {
+		//if there are watchers,clean will happened when watcher return
+		for notice := range a.notices {
+			notice <- nil
 		}
 	}
 }
@@ -124,14 +128,16 @@ func (s *Service) delconfig(groupname, appname, summaryid string) {
 	a.config.CurVersion = 0
 	a.config.AppConfig = "{}"
 	a.config.SourceConfig = "{}"
-	for notice := range a.notices {
-		notice <- nil
-	}
 	if len(a.notices) == 0 {
 		//if there are no watchers,clean right now
 		delete(g, a.config.AppName)
 		if len(g) == 0 {
 			delete(s.apps, groupname)
+		}
+	} else {
+		//if there are watchers,clean will happened when watcher return
+		for notice := range a.notices {
+			notice <- nil
 		}
 	}
 }
@@ -279,9 +285,9 @@ func (s *Service) Watch(ctx context.Context, req *api.WatchReq) (*api.WatchResp,
 		delete(a.notices, ch)
 		s.putnotice(ch)
 		if len(a.notices) == 0 && a.config.CurVersion == 0 {
-			delete(s.apps[a.config.GroupName], a.config.AppName)
+			delete(g, a.config.AppName)
 		}
-		if len(s.apps[a.config.GroupName]) == 0 {
+		if len(g) == 0 {
 			delete(s.apps, a.config.GroupName)
 		}
 		return nil, ctx.Err()
@@ -302,9 +308,9 @@ func (s *Service) Watch(ctx context.Context, req *api.WatchReq) (*api.WatchResp,
 		SourceConfig: a.config.SourceConfig,
 	}
 	if len(a.notices) == 0 && a.config.CurVersion == 0 {
-		delete(s.apps[a.config.GroupName], a.config.AppName)
+		delete(g, a.config.AppName)
 	}
-	if len(s.apps[a.config.GroupName]) == 0 {
+	if len(g) == 0 {
 		delete(s.apps, a.config.GroupName)
 	}
 	return resp, nil

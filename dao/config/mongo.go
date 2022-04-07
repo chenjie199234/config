@@ -30,7 +30,7 @@ func (d *Dao) MongoGetAllApps(ctx context.Context, groupname, searchfilter strin
 }
 
 //index == 0 get the current index's config
-func (d *Dao) MongoGetCOnfig(ctx context.Context, groupname, appname string, index uint32) (summary *model.Summary, config *model.Config, e error) {
+func (d *Dao) MongoGetConfig(ctx context.Context, groupname, appname string, index uint32) (summary *model.Summary, config *model.Config, e error) {
 	if index != 0 {
 		col := d.mongo.Database("config_"+groupname, options.Database().SetReadPreference(readpref.Primary()).SetReadConcern(readconcern.Local())).Collection(appname)
 		filter := bson.M{"$or": bson.A{bson.M{"index": 0}, bson.M{"index": index}}}
@@ -165,13 +165,13 @@ func (d *Dao) MongoRollbackConfig(ctx context.Context, groupname, appname string
 	return true, nil
 }
 
-type WatchInitHandler func([]*model.Current)
+type WatchRefreshHandler func([]*model.Current)
 type WatchUpdateHandler func(*model.Current)
 type WatchDeleteGroupHandler func(groupname string)
 type WatchDeleteAppHandler func(groupname, appname string)
 type WatchDeleteConfigHandler func(groupname, appname string, id string)
 
-func (d *Dao) MongoWatchConfig(init WatchInitHandler, update WatchUpdateHandler, delG WatchDeleteGroupHandler, delA WatchDeleteAppHandler, delC WatchDeleteConfigHandler) error {
+func (d *Dao) MongoWatchConfig(refresh WatchRefreshHandler, update WatchUpdateHandler, delG WatchDeleteGroupHandler, delA WatchDeleteAppHandler, delC WatchDeleteConfigHandler) error {
 	watchfilter := mongo.Pipeline{bson.D{primitive.E{Key: "$match", Value: bson.M{"ns.db": bson.M{"$regex": "^config_"}}}}}
 	stream, e := d.mongo.Watch(context.Background(), watchfilter, options.ChangeStream().SetFullDocument(options.UpdateLookup))
 	if e != nil {
@@ -179,71 +179,79 @@ func (d *Dao) MongoWatchConfig(init WatchInitHandler, update WatchUpdateHandler,
 	}
 	//TODO
 	// init()
-	for {
-		for stream == nil {
-			//reconnect
-			time.Sleep(time.Millisecond * 5)
-			if stream, e = d.mongo.Watch(context.Background(), watchfilter, options.ChangeStream().SetFullDocument(options.UpdateLookup)); e != nil {
-				log.Error(nil, "[dao.MongoWatchConfig]", e)
-				stream = nil
-				continue
+	go func() {
+		for {
+			for stream == nil {
+				//reconnect
+				time.Sleep(time.Millisecond * 5)
+				if stream, e = d.mongo.Watch(context.Background(), watchfilter, options.ChangeStream().SetFullDocument(options.UpdateLookup)); e != nil {
+					log.Error(nil, "[dao.MongoWatchConfig]", e)
+					stream = nil
+					continue
+				}
+				//TODO
+				//init()
 			}
-			//TODO
-			//init()
-		}
-		for stream.Next(context.Background()) {
-			switch stream.Current.Lookup("operationType").StringValue() {
-			case "dropDatabase":
-				//drop database
-				groupname := stream.Current.Lookup("ns").Document().Lookup("db").StringValue()[7:]
-				delG(groupname)
-			case "drop":
-				//drop collection
-				groupname := stream.Current.Lookup("ns").Document().Lookup("db").StringValue()[7:]
-				appname := stream.Current.Lookup("ns").Document().Lookup("coll").StringValue()
-				delA(groupname, appname)
-			case "insert":
-				//insert document
-				fallthrough
-			case "update":
-				//update document
-				groupname := stream.Current.Lookup("ns").Document().Lookup("db").StringValue()[7:]
-				appname := stream.Current.Lookup("ns").Document().Lookup("coll").StringValue()
-				index, ok := stream.Current.Lookup("fullDocument").Document().Lookup("index").Int32OK()
-				if !ok {
-					//unknown doc
-					continue
+			for stream.Next(context.Background()) {
+				switch stream.Current.Lookup("operationType").StringValue() {
+				case "dropDatabase":
+					//drop database
+					groupname := stream.Current.Lookup("ns").Document().Lookup("db").StringValue()[7:]
+					delG(groupname)
+				case "drop":
+					//drop collection
+					groupname := stream.Current.Lookup("ns").Document().Lookup("db").StringValue()[7:]
+					appname := stream.Current.Lookup("ns").Document().Lookup("coll").StringValue()
+					delA(groupname, appname)
+				case "insert":
+					//insert document
+					fallthrough
+				case "update":
+					//update document
+					groupname := stream.Current.Lookup("ns").Document().Lookup("db").StringValue()[7:]
+					appname := stream.Current.Lookup("ns").Document().Lookup("coll").StringValue()
+					index, ok := stream.Current.Lookup("fullDocument").Document().Lookup("index").Int32OK()
+					if !ok {
+						//unknown doc
+						continue
+					}
+					if index != 0 {
+						//this is not the summary
+						continue
+					}
+					//this is the summary
+					s := &model.Summary{}
+					if e := stream.Current.Lookup("fullDocument").Unmarshal(s); e != nil {
+						log.Error(nil, "[dao.MongoWatchConfig] group:", groupname, "app:", appname, "summary data broken:", e)
+						continue
+					}
+					c := &model.Current{}
+					if e := d.mongo.Database("config_"+groupname).Collection(appname).FindOne(context.Background(), bson.M{"index": s.CurIndex}).Decode(c); e != nil {
+						log.Error(nil, "[dao.MongoWatchConfig] group:", groupname, "app:", appname, "index:", s.CurIndex, "config data broken:", e)
+						continue
+					}
+					update(&model.Current{
+						SummaryID:    s.ID.Hex(),
+						GroupName:    groupname,
+						AppName:      appname,
+						CurVersion:   s.CurVersion,
+						AppConfig:    c.AppConfig,
+						SourceConfig: c.SourceConfig,
+					})
+				case "delete":
+					//delete document
+					groupname := stream.Current.Lookup("ns").Document().Lookup("db").StringValue()[7:]
+					appname := stream.Current.Lookup("ns").Document().Lookup("coll").StringValue()
+					id := stream.Current.Lookup("documentKey").Document().Lookup("_id").ObjectID().Hex()
+					delC(groupname, appname, id)
 				}
-				if index != 0 {
-					//this is not the summary
-					continue
-				}
-				//this is the summary
-				s := &model.Summary{}
-				if e := stream.Current.Lookup("fullDocument").Unmarshal(s); e != nil {
-					log.Error(nil, "[dao.MongoWatchConfig] group:", groupname, "app:", appname, "summary data broken:", e)
-					continue
-				}
-				c := &model.Current{}
-				if e := d.mongo.Database("config_"+groupname).Collection(appname).FindOne(context.Background(), bson.M{"index": s.CurIndex}).Decode(c); e != nil {
-					log.Error(nil, "[dao.MongoWatchConfig] group:", groupname, "app:", appname, "index:", s.CurIndex, "config data broken:", e)
-					continue
-				}
-				update(&model.Current{
-					ID:           s.ID.Hex(),
-					GroupName:    groupname,
-					AppName:      appname,
-					CurVersion:   s.CurVersion,
-					AppConfig:    c.AppConfig,
-					SourceConfig: c.SourceConfig,
-				})
-			case "delete":
-				//delete document
-				groupname := stream.Current.Lookup("ns").Document().Lookup("db").StringValue()[7:]
-				appname := stream.Current.Lookup("ns").Document().Lookup("coll").StringValue()
-				id := stream.Current.Lookup("documentKey").Document().Lookup("_id").ObjectID().Hex()
-				delC(groupname, appname, id)
 			}
+			if stream.Err() != nil {
+				log.Error(nil, "[dao.MongoWatchConfig]", stream.Err())
+			}
+			stream.Close(context.Background())
+			stream = nil
 		}
-	}
+	}()
+	return nil
 }

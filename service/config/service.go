@@ -9,6 +9,7 @@ import (
 	"github.com/chenjie199234/config/config"
 	configdao "github.com/chenjie199234/config/dao/config"
 	"github.com/chenjie199234/config/ecode"
+	"github.com/chenjie199234/config/model"
 
 	cerror "github.com/chenjie199234/Corelib/error"
 	"github.com/chenjie199234/Corelib/log"
@@ -23,21 +24,13 @@ type Service struct {
 	configDao  *configdao.Dao
 	noticepool *sync.Pool
 	sync.Mutex
-	groups map[string]*group
-}
-type group struct {
-	sync.Mutex
-	apps map[string]*app
+	apps   map[string]map[string]*app //first key groupname,second key appname,value appinfo
+	status bool
 }
 type app struct {
 	sync.Mutex
-	config  *configdata
+	config  *model.Current
 	notices map[chan *struct{}]*struct{}
-}
-type configdata struct {
-	Version      int32
-	AppConfig    string
-	SoucreConfig string
 }
 
 //Start -
@@ -45,16 +38,103 @@ func Start() *Service {
 	s := &Service{
 		configDao:  configdao.NewDao(config.GetSql("config_sql"), config.GetRedis("config_redis"), config.GetMongo("config_mongo")),
 		noticepool: &sync.Pool{},
+		status:     true,
 	}
-	// if e := s.update(); e != nil {
-	// panic("")
-	// }
+	if e := s.configDao.MongoWatchConfig(s.refresh, s.update, s.delgroup, s.delapp, s.delconfig); e != nil {
+		panic("[Config.Start] watch error: " + e.Error())
+	}
 	return s
 }
+func (s *Service) refresh(curs []*model.Current) {
 
-//
-// func (s *Service) update() error {
-// }
+}
+func (s *Service) update(cur *model.Current) {
+
+}
+func (s *Service) delgroup(groupname string) {
+	s.Lock()
+	defer s.Unlock()
+	g, ok := s.apps[groupname]
+	if !ok {
+		return
+	}
+	for _, a := range g {
+		a.Lock()
+		a.config.CurVersion = 0
+		a.config.AppConfig = "{}"
+		a.config.SourceConfig = "{}"
+		for notice := range a.notices {
+			notice <- nil
+		}
+		if len(a.notices) == 0 {
+			//if there are no watchers,clean right now
+			delete(g, a.config.AppName)
+		}
+		a.Unlock()
+	}
+	if len(g) == 0 {
+		//if there are no watchers,clean right now
+		delete(s.apps, groupname)
+	}
+}
+func (s *Service) delapp(groupname, appname string) {
+	s.Lock()
+	defer s.Unlock()
+	g, ok := s.apps[groupname]
+	if !ok {
+		return
+	}
+	a, ok := g[appname]
+	if !ok {
+		return
+	}
+	a.Lock()
+	defer a.Unlock()
+	a.config.CurVersion = 0
+	a.config.AppConfig = "{}"
+	a.config.SourceConfig = "{}"
+	for notice := range a.notices {
+		notice <- nil
+	}
+	if len(a.notices) == 0 {
+		//if there are no watchers,clean right now
+		delete(g, a.config.AppName)
+		if len(g) == 0 {
+			delete(s.apps, groupname)
+		}
+	}
+}
+func (s *Service) delconfig(groupname, appname, summaryid string) {
+	s.Lock()
+	defer s.Unlock()
+	g, ok := s.apps[groupname]
+	if !ok {
+		return
+	}
+	a, ok := g[appname]
+	if !ok {
+		return
+	}
+	a.Lock()
+	defer a.Unlock()
+	if a.config.SummaryID != summaryid {
+		return
+	}
+	//delete the summary,this is same as delete the app
+	a.config.CurVersion = 0
+	a.config.AppConfig = "{}"
+	a.config.SourceConfig = "{}"
+	for notice := range a.notices {
+		notice <- nil
+	}
+	if len(a.notices) == 0 {
+		//if there are no watchers,clean right now
+		delete(g, a.config.AppName)
+		if len(g) == 0 {
+			delete(s.apps, groupname)
+		}
+	}
+}
 
 //get all groups
 func (s *Service) Groups(ctx context.Context, req *api.GroupsReq) (*api.GroupsResp, error) {
@@ -78,7 +158,7 @@ func (s *Service) Apps(ctx context.Context, req *api.AppsReq) (*api.AppsResp, er
 
 //get one specific app's config
 func (s *Service) Get(ctx context.Context, req *api.GetReq) (*api.GetResp, error) {
-	summary, config, e := s.configDao.MongoGetCOnfig(ctx, req.Groupname, req.Appname, req.Index)
+	summary, config, e := s.configDao.MongoGetConfig(ctx, req.Groupname, req.Appname, req.Index)
 	if e != nil {
 		log.Error(ctx, "[Get] group:", req.Groupname, "app:", req.Appname, "error:", e)
 		return nil, ecode.ErrSystem
@@ -153,62 +233,80 @@ func (s *Service) putnotice(ch chan *struct{}) {
 //watch on specific app's config
 func (s *Service) Watch(ctx context.Context, req *api.WatchReq) (*api.WatchResp, error) {
 	s.Lock()
-	g, ok := s.groups[req.Groupname]
-	if !ok {
-		g = &group{}
-		s.groups[req.Groupname] = g
+	if !s.status {
+		s.Unlock()
+		return nil, cerror.ErrClosing
 	}
-	g.Lock()
-	s.Unlock()
-	a, ok := g.apps[req.Appname]
+	g, ok := s.apps[req.Groupname]
+	if !ok {
+		g = make(map[string]*app)
+		s.apps[req.Groupname] = g
+	}
+	a, ok := g[req.Appname]
 	if !ok {
 		a = &app{
-			config: &configdata{
-				Version:      0,
+			config: &model.Current{
+				CurVersion:   0,
+				GroupName:    req.Groupname,
+				AppName:      req.Appname,
 				AppConfig:    "{}",
-				SoucreConfig: "{}",
+				SourceConfig: "{}",
 			},
 			notices: make(map[chan *struct{}]*struct{}),
 		}
-		g.apps[req.Appname] = a
+		g[req.Appname] = a
 	}
 	a.Lock()
-	g.Unlock()
-	if req.CurVersion < 0 || a.config.Version > req.CurVersion {
+	s.Unlock()
+	if int32(a.config.CurVersion) != req.CurVersion {
 		resp := &api.WatchResp{
-			Version:      a.config.Version,
+			Version:      int32(a.config.CurVersion),
 			AppConfig:    a.config.AppConfig,
-			SourceConfig: a.config.SoucreConfig,
+			SourceConfig: a.config.SourceConfig,
 		}
 		a.Unlock()
 		return resp, nil
-	} else if a.config.Version < req.CurVersion {
-		curversion := a.config.Version
-		a.Unlock()
-		log.Error(ctx, "[Watch] client version:", req.CurVersion, "big then current version:", curversion)
-		return nil, ecode.ErrReq
-	} else {
-		ch := s.getnotice()
-		a.notices[ch] = nil
-		a.Unlock()
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case _, ok := <-ch:
-			if ok {
-				s.putnotice(ch)
-			} else {
-				return nil, cerror.ErrClosing
-			}
+	}
+	ch := s.getnotice()
+	a.notices[ch] = nil
+	a.Unlock()
+	select {
+	case <-ctx.Done():
+		s.Lock()
+		defer s.Unlock()
+		a.Lock()
+		defer a.Unlock()
+		delete(a.notices, ch)
+		s.putnotice(ch)
+		if len(a.notices) == 0 && a.config.CurVersion == 0 {
+			delete(s.apps[a.config.GroupName], a.config.AppName)
+		}
+		if len(s.apps[a.config.GroupName]) == 0 {
+			delete(s.apps, a.config.GroupName)
+		}
+		return nil, ctx.Err()
+	case _, ok := <-ch:
+		if !ok {
+			return nil, cerror.ErrClosing
 		}
 	}
+	s.Lock()
+	defer s.Unlock()
 	a.Lock()
+	defer a.Unlock()
+	delete(a.notices, ch)
+	s.putnotice(ch)
 	resp := &api.WatchResp{
-		Version:      a.config.Version,
+		Version:      int32(a.config.CurVersion),
 		AppConfig:    a.config.AppConfig,
-		SourceConfig: a.config.SoucreConfig,
+		SourceConfig: a.config.SourceConfig,
 	}
-	a.Unlock()
+	if len(a.notices) == 0 && a.config.CurVersion == 0 {
+		delete(s.apps[a.config.GroupName], a.config.AppName)
+	}
+	if len(s.apps[a.config.GroupName]) == 0 {
+		delete(s.apps, a.config.GroupName)
+	}
 	return resp, nil
 }
 
@@ -216,15 +314,14 @@ func (s *Service) Watch(ctx context.Context, req *api.WatchReq) (*api.WatchResp,
 func (s *Service) Stop() {
 	s.Lock()
 	defer s.Unlock()
-	for _, g := range s.groups {
-		g.Lock()
-		for _, a := range g.apps {
+	s.status = false
+	for _, g := range s.apps {
+		for _, a := range g {
 			a.Lock()
 			for n := range a.notices {
 				close(n)
 			}
 			a.Unlock()
 		}
-		g.Unlock()
 	}
 }

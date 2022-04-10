@@ -1,5 +1,5 @@
 # config
-![image](Corelib.jpg)
+![image](config.jpg)
 ```
 config是一个微服务.
 运行cmd脚本可查看使用方法.windows下将./cmd.sh换为cmd.bat

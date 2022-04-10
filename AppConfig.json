@@ -5,7 +5,7 @@
 			"CRPC":"200ms",
 			"GRPC":"200ms"
 		},
-		"config.config/watch":{
+		"/config.config/watch":{
 			"POST":"0s"
 		}
 	},

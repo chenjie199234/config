@@ -69,9 +69,6 @@ func UpdateHandlerTimeout(hts map[string]map[string]ctime.Duration) {
 	cc := make(map[string]map[string]time.Duration)
 	for path, methods := range hts {
 		for method, timeout := range methods {
-			if timeout == 0 {
-				continue
-			}
 			method = strings.ToUpper(method)
 			if method != http.MethodGet && method != http.MethodPost && method != http.MethodPut && method != http.MethodPatch && method != http.MethodDelete {
 				continue

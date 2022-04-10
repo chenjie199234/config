@@ -206,7 +206,7 @@ func (d *Dao) getall() (map[string]map[string]*model.Current, error) {
 				AppConfig:    config.AppConfig,
 				SourceConfig: config.SourceConfig,
 			}
-			result[group][app] = tmpapp
+			tmpgroup[app] = tmpapp
 		}
 		if len(tmpgroup) != 0 {
 			result[group] = tmpgroup
@@ -277,7 +277,7 @@ func (d *Dao) MongoWatchConfig(refresh WatchRefreshHandler, update WatchUpdateHa
 						log.Error(nil, "[dao.MongoWatchConfig] group:", groupname, "app:", appname, "summary data broken:", e)
 						continue
 					}
-					c := &model.Current{}
+					c := &model.Config{}
 					if e := d.mongo.Database("config_"+groupname).Collection(appname).FindOne(context.Background(), bson.M{"index": s.CurIndex}).Decode(c); e != nil {
 						log.Error(nil, "[dao.MongoWatchConfig] group:", groupname, "app:", appname, "index:", s.CurIndex, "config data broken:", e)
 						continue

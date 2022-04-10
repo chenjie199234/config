@@ -111,11 +111,11 @@ if "%1" == "new" (
 goto :end
 
 :kube
-	codegen -n config -k
+	codegen -n config -p github.com/chenjie199234/config -k
 goto :end
 
 :new
-	codegen -n config -s %2
+	codegen -n config -p github.com/chenjie199234/config -s %2
 goto :end
 
 :help

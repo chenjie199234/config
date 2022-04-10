@@ -38,11 +38,11 @@ pb() {
 }
 
 new() {
-	codegen -n config -s $1
+	codegen -n config -p github.com/chenjie199234/config -s $1
 }
 
 kube() {
-	codegen -n config -k
+	codegen -n config -p github.com/chenjie199234/config -k
 }
 
 if !(type git >/dev/null 2>&1);then

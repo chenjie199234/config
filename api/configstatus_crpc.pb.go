@@ -2,7 +2,7 @@
 // version:
 // 	protoc-gen-go-crpc v0.0.1
 // 	protoc             v3.19.4
-// source: api/status.proto
+// source: api/configstatus.proto
 
 package api
 

@@ -70,6 +70,8 @@
 !/service/*
 !/service/**/
 !/service/**/*
+!config.jpg
+!config.drawio
 !AppConfig.json
 !cmd.sh
 !cmd.bat

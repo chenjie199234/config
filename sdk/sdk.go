@@ -25,7 +25,7 @@ func NewDirectSdk(selfgroup, selfname string, url string) error {
 //configservicehost format [http/https]://[username[:password]@]the.host.name[:port]
 func NewServiceSdk(selfgroup, selfname, configservicegroup, configservicehost string) error {
 	if atomic.CompareAndSwapInt32(&status, 0, 2) {
-		return service.NewServiceSdk(selfgroup, selfname, configservicegroup, configservicehost)
+		return service.NewServiceSdk(selfgroup, selfname, configservicegroup, configservicehost, updateApp, updateSource)
 	}
 	return nil
 }

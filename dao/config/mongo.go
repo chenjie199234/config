@@ -16,7 +16,11 @@ import (
 )
 
 func (d *Dao) MongoGetAllGroups(ctx context.Context, searchfilter string) ([]string, error) {
-	r, e := d.mongo.ListDatabaseNames(ctx, bson.M{"name": bson.M{"$regex": "^config_.*" + searchfilter + ".*"}})
+	regex := "^config_"
+	if searchfilter != "" {
+		regex += ".*" + searchfilter + ".*"
+	}
+	r, e := d.mongo.ListDatabaseNames(ctx, bson.M{"name": bson.M{"$regex": regex}})
 	if e != nil {
 		return nil, e
 	}
@@ -66,12 +70,12 @@ func (d *Dao) MongoGetConfig(ctx context.Context, groupname, appname string, ind
 			}
 			return
 		}
-		summary = tmps
-		if summary.CurVersion > 0 {
+		if tmps.CurVersion > 0 {
 			tmpc := &model.Config{}
-			if e = d.mongo.Database("config_"+groupname).Collection(appname).FindOne(ctx, bson.M{"index": summary.CurIndex}).Decode(tmpc); e != nil {
+			if e = d.mongo.Database("config_"+groupname).Collection(appname).FindOne(ctx, bson.M{"index": tmps.CurIndex}).Decode(tmpc); e != nil {
 				return
 			}
+			summary = tmps
 			config = tmpc
 		}
 	}
@@ -165,32 +169,80 @@ func (d *Dao) MongoRollbackConfig(ctx context.Context, groupname, appname string
 	return true, nil
 }
 
-type WatchRefreshHandler func([]*model.Current)
+//first key groupname,second key appname,value curconfig
+type WatchRefreshHandler func(map[string]map[string]*model.Current)
 type WatchUpdateHandler func(*model.Current)
 type WatchDeleteGroupHandler func(groupname string)
 type WatchDeleteAppHandler func(groupname, appname string)
 type WatchDeleteConfigHandler func(groupname, appname string, id string)
 
+func (d *Dao) getall() (map[string]map[string]*model.Current, error) {
+	groups, e := d.MongoGetAllGroups(context.Background(), "")
+	if e != nil {
+		return nil, e
+	}
+	result := make(map[string]map[string]*model.Current, len(groups))
+	for _, group := range groups {
+		tmpgroup := make(map[string]*model.Current)
+		apps, e := d.MongoGetAllApps(context.Background(), group, "")
+		if e != nil {
+			return nil, e
+		}
+		for _, app := range apps {
+			summary, config, e := d.MongoGetConfig(context.Background(), group, app, 0)
+			if e != nil {
+				return nil, e
+			}
+			//when MongoGetConfig's param index is 0
+			//summary and config must be both nil or both not nil
+			if summary == nil || summary.CurVersion == 0 {
+				continue
+			}
+			tmpapp := &model.Current{
+				SummaryID:    summary.ID.Hex(),
+				GroupName:    group,
+				AppName:      app,
+				CurVersion:   summary.CurVersion,
+				AppConfig:    config.AppConfig,
+				SourceConfig: config.SourceConfig,
+			}
+			result[group][app] = tmpapp
+		}
+		if len(tmpgroup) != 0 {
+			result[group] = tmpgroup
+		}
+	}
+	return result, nil
+}
 func (d *Dao) MongoWatchConfig(refresh WatchRefreshHandler, update WatchUpdateHandler, delG WatchDeleteGroupHandler, delA WatchDeleteAppHandler, delC WatchDeleteConfigHandler) error {
 	watchfilter := mongo.Pipeline{bson.D{primitive.E{Key: "$match", Value: bson.M{"ns.db": bson.M{"$regex": "^config_"}}}}}
 	stream, e := d.mongo.Watch(context.Background(), watchfilter, options.ChangeStream().SetFullDocument(options.UpdateLookup))
 	if e != nil {
 		return e
 	}
-	//TODO
-	// init()
+	datas, e := d.getall()
+	if e != nil {
+		return e
+	}
+	refresh(datas)
 	go func() {
 		for {
 			for stream == nil {
 				//reconnect
 				time.Sleep(time.Millisecond * 5)
 				if stream, e = d.mongo.Watch(context.Background(), watchfilter, options.ChangeStream().SetFullDocument(options.UpdateLookup)); e != nil {
-					log.Error(nil, "[dao.MongoWatchConfig]", e)
+					log.Error(nil, "[dao.MongoWatchConfig] reconnect stream error:", e)
 					stream = nil
 					continue
 				}
-				//TODO
-				//init()
+				datas, e = d.getall()
+				if e != nil {
+					log.Error(nil, "[dao.MongoWatchConfig] refresh after reconnect stream error:", e)
+					stream.Close(context.Background())
+					stream = nil
+					continue
+				}
+				refresh(datas)
 			}
 			for stream.Next(context.Background()) {
 				switch stream.Current.Lookup("operationType").StringValue() {

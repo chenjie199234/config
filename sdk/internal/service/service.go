@@ -43,7 +43,7 @@ func NewServiceSdk(selfgroup, selfname, configServiceGroup, serverhost string, u
 		for {
 			if e != nil {
 				//retry
-				time.Sleep(time.Millisecond * 5)
+				time.Sleep(time.Millisecond * 100)
 			}
 			tmpresp, e := client.Watch(ctx, &api.WatchReq{
 				Groupname:  selfgroup,

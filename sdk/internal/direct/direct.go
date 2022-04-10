@@ -54,7 +54,7 @@ func NewDirectSdk(selfgroup, selfname string, url string, updateapp, updatesourc
 		for {
 			for stream == nil {
 				//reconnect
-				time.Sleep(time.Millisecond * 5)
+				time.Sleep(time.Millisecond * 100)
 				if stream, e = client.Database("config_"+selfgroup).Collection(selfname).Watch(context.Background(), watchfilter, watchop); e != nil {
 					log.Error(nil, "[config.sdk.watch] reconnect error:", e)
 					stream = nil

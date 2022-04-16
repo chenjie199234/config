@@ -48,8 +48,14 @@ func (c *statusWebClient) Ping(ctx context.Context, req *Pingreq, header http.He
 	if req.GetTimestamp() != 0 {
 		query.AppendString("timestamp=")
 		query.AppendInt64(req.GetTimestamp())
+		query.AppendByte('&')
 	}
-	data, e := c.cc.Get(ctx, _WebPathStatusPing, query.String(), header, metadata.GetMetadata(ctx))
+	querystr := query.String()
+	if len(querystr) > 0 {
+		//drop last &
+		querystr = querystr[:len(querystr)-1]
+	}
+	data, e := c.cc.Get(ctx, _WebPathStatusPing, querystr, header, metadata.GetMetadata(ctx))
 	if e != nil {
 		return nil, e
 	}
@@ -78,7 +84,7 @@ func _Status_Ping_WebHandler(handler func(context.Context, *Pingreq) (*Pingresp,
 				return
 			}
 			if len(data) > 0 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -112,7 +118,7 @@ func _Status_Ping_WebHandler(handler func(context.Context, *Pingreq) (*Pingresp,
 			}
 			data.AppendByte('}')
 			if data.Len() > 2 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -137,7 +143,7 @@ func _Status_Ping_WebHandler(handler func(context.Context, *Pingreq) (*Pingresp,
 			respd, _ := proto.Marshal(resp)
 			ctx.Write("application/x-protobuf", respd)
 		} else {
-			respd, _ := protojson.MarshalOptions{UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
 			ctx.Write("application/json", respd)
 		}
 	}

@@ -7,6 +7,9 @@
 		},
 		"/config.config/watch":{
 			"POST":"0s"
+		},
+		"/config.config/updatechiper":{
+			"POST":"0s"
 		}
 	},
 	"handler_rate":[{

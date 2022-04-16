@@ -16,5 +16,9 @@ var (
 	ErrBan      = cerror.ErrBan      //10006 // http code 403
 	ErrNotExist = cerror.ErrNotExist //10007 // http code 404
 
-	ErrBusiness1 = cerror.MakeError(20001, http.StatusBadRequest, "business err message")
+	ErrAppNotExist     = cerror.MakeError(20001, http.StatusBadRequest, "app doesn't exist")
+	ErrAppAlreadyExist = cerror.MakeError(20002, http.StatusBadRequest, "app already exist")
+	ErrWrongCipher     = cerror.MakeError(20003, http.StatusBadRequest, "wrong cipher")
+	ErrCipherLength    = cerror.MakeError(20004, http.StatusBadRequest, "cipher must be empty or 32 byte length")
+	ErrIndexNotExist   = cerror.MakeError(20005, http.StatusBadRequest, "config index doesn't exist")
 )

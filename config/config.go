@@ -5,10 +5,10 @@ import (
 	"strconv"
 
 	"github.com/chenjie199234/config/api"
+	"github.com/chenjie199234/config/config/internal/selfsdk"
 
 	"github.com/chenjie199234/Corelib/log"
 	"github.com/chenjie199234/Corelib/trace"
-	"github.com/chenjie199234/config/sdk"
 )
 
 //EnvConfig can't hot update,all these data is from system env setting
@@ -73,7 +73,7 @@ func initremote() {
 		} else {
 			panic("[config.initremote] missing env REMOTE_CONFIG_MONGO_URL")
 		}
-		if e := sdk.NewDirectSdk(api.Group, api.Name, mongourl); e != nil {
+		if e := selfsdk.NewDirectSdk(api.Group, mongourl); e != nil {
 			log.Error(nil, "[config.initremote] new sdk error:", e)
 			Close()
 			os.Exit(1)

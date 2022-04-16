@@ -30,6 +30,14 @@ service config{
 	rpc apps(apps_req)returns(apps_resp){
 		option (pbex.method)="post";
 	}
+	//create one specific app
+	rpc create(create_req)returns(create_resp){
+		option (pbex.method)="post";
+	}
+	//update one specific app's cipher
+	rpc updatecipher(updatecipher_req)returns(updatecipher_resp){
+		option (pbex.method)="post";
+	}
 	//get one specific app's config
 	rpc get(get_req)returns(get_resp){
 		option (pbex.method)="post";
@@ -68,6 +76,22 @@ message apps_req {
 }
 message apps_resp {
 	repeated string apps=1;
+}
+message create_req {
+	string groupname=1[(pbex.string_bytes_len_gt)=0];
+	string appname=2[(pbex.string_bytes_len_gt)=0];
+	string cipher=3;
+}
+message create_resp {
+}
+message updatecipher_req{
+	string groupname=1[(pbex.string_bytes_len_gt)=0];
+	string appname=2[(pbex.string_bytes_len_gt)=0];
+	string old=3;
+	string new=4;//empty means stop cipher
+}
+message updatecipher_resp{
+
 }
 message get_req {
 	string groupname=1[(pbex.string_bytes_len_gt)=0];

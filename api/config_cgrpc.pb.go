@@ -16,6 +16,8 @@ import (
 
 var _CGrpcPathConfigGroups = "/config.config/groups"
 var _CGrpcPathConfigApps = "/config.config/apps"
+var _CGrpcPathConfigCreate = "/config.config/create"
+var _CGrpcPathConfigUpdatecipher = "/config.config/updatecipher"
 var _CGrpcPathConfigGet = "/config.config/get"
 var _CGrpcPathConfigSet = "/config.config/set"
 var _CGrpcPathConfigRollback = "/config.config/rollback"
@@ -26,6 +28,10 @@ type ConfigCGrpcClient interface {
 	Groups(context.Context, *GroupsReq) (*GroupsResp, error)
 	//get all apps in specific group
 	Apps(context.Context, *AppsReq) (*AppsResp, error)
+	//create one specific app
+	Create(context.Context, *CreateReq) (*CreateResp, error)
+	//update one specific app's cipher
+	Updatecipher(context.Context, *UpdatecipherReq) (*UpdatecipherResp, error)
 	//get one specific app's config
 	Get(context.Context, *GetReq) (*GetResp, error)
 	//set one specific app's config
@@ -60,6 +66,26 @@ func (c *configCGrpcClient) Apps(ctx context.Context, req *AppsReq) (*AppsResp, 
 	}
 	resp := new(AppsResp)
 	if e := c.cc.Call(ctx, _CGrpcPathConfigApps, req, resp, metadata.GetMetadata(ctx)); e != nil {
+		return nil, e
+	}
+	return resp, nil
+}
+func (c *configCGrpcClient) Create(ctx context.Context, req *CreateReq) (*CreateResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	resp := new(CreateResp)
+	if e := c.cc.Call(ctx, _CGrpcPathConfigCreate, req, resp, metadata.GetMetadata(ctx)); e != nil {
+		return nil, e
+	}
+	return resp, nil
+}
+func (c *configCGrpcClient) Updatecipher(ctx context.Context, req *UpdatecipherReq) (*UpdatecipherResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	resp := new(UpdatecipherResp)
+	if e := c.cc.Call(ctx, _CGrpcPathConfigUpdatecipher, req, resp, metadata.GetMetadata(ctx)); e != nil {
 		return nil, e
 	}
 	return resp, nil
@@ -110,6 +136,10 @@ type ConfigCGrpcServer interface {
 	Groups(context.Context, *GroupsReq) (*GroupsResp, error)
 	//get all apps in specific group
 	Apps(context.Context, *AppsReq) (*AppsResp, error)
+	//create one specific app
+	Create(context.Context, *CreateReq) (*CreateResp, error)
+	//update one specific app's cipher
+	Updatecipher(context.Context, *UpdatecipherReq) (*UpdatecipherResp, error)
 	//get one specific app's config
 	Get(context.Context, *GetReq) (*GetResp, error)
 	//set one specific app's config
@@ -157,6 +187,52 @@ func _Config_Apps_CGrpcHandler(handler func(context.Context, *AppsReq) (*AppsRes
 		}
 		if resp == nil {
 			resp = new(AppsResp)
+		}
+		ctx.Write(resp)
+	}
+}
+func _Config_Create_CGrpcHandler(handler func(context.Context, *CreateReq) (*CreateResp, error)) cgrpc.OutsideHandler {
+	return func(ctx *cgrpc.Context) {
+		req := new(CreateReq)
+		if ctx.DecodeReq(req) != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.config/create]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(CreateResp)
+		}
+		ctx.Write(resp)
+	}
+}
+func _Config_Updatecipher_CGrpcHandler(handler func(context.Context, *UpdatecipherReq) (*UpdatecipherResp, error)) cgrpc.OutsideHandler {
+	return func(ctx *cgrpc.Context) {
+		req := new(UpdatecipherReq)
+		if ctx.DecodeReq(req) != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.config/updatecipher]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(UpdatecipherResp)
 		}
 		ctx.Write(resp)
 	}
@@ -258,6 +334,8 @@ func RegisterConfigCGrpcServer(engine *cgrpc.CGrpcServer, svc ConfigCGrpcServer,
 	_ = allmids
 	engine.RegisterHandler("config.config", "groups", _Config_Groups_CGrpcHandler(svc.Groups))
 	engine.RegisterHandler("config.config", "apps", _Config_Apps_CGrpcHandler(svc.Apps))
+	engine.RegisterHandler("config.config", "create", _Config_Create_CGrpcHandler(svc.Create))
+	engine.RegisterHandler("config.config", "updatecipher", _Config_Updatecipher_CGrpcHandler(svc.Updatecipher))
 	engine.RegisterHandler("config.config", "get", _Config_Get_CGrpcHandler(svc.Get))
 	engine.RegisterHandler("config.config", "set", _Config_Set_CGrpcHandler(svc.Set))
 	engine.RegisterHandler("config.config", "rollback", _Config_Rollback_CGrpcHandler(svc.Rollback))

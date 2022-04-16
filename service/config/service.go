@@ -28,7 +28,7 @@ type Service struct {
 	status bool
 }
 type app struct {
-	config  *model.Current
+	summary *model.Summary
 	notices map[chan *struct{}]*struct{}
 }
 
@@ -40,14 +40,14 @@ func Start() *Service {
 		apps:       make(map[string]map[string]*app),
 		status:     true,
 	}
-	if e := s.configDao.MongoWatchConfig(s.refresh, s.update, s.delgroup, s.delapp, s.delconfig); e != nil {
+	if e := s.configDao.MongoWatchConfig(s.refresh, s.update, s.delgroup, s.delapp, s.delconfig, model.Decrypt); e != nil {
 		panic("[Config.Start] watch error: " + e.Error())
 	}
 	return s
 }
 
 //first key groupname,second key appname,value curconfig
-func (s *Service) refresh(curs map[string]map[string]*model.Current) {
+func (s *Service) refresh(curs map[string]map[string]*model.Summary) {
 	s.Lock()
 	defer s.Unlock()
 	//delete not exist
@@ -55,15 +55,16 @@ func (s *Service) refresh(curs map[string]map[string]*model.Current) {
 		curg, ok := curs[gname]
 		if !ok {
 			log.Info(nil, "[refresh.delgroup] group:", gname)
-			for _, a := range g {
+			for aname, a := range g {
 				if len(a.notices) == 0 {
 					//if there are no watchers,clean right now
-					delete(g, a.config.AppName)
+					delete(g, aname)
 				} else {
 					//if there are watchers,clean will happened when watcher return
-					a.config.CurVersion = 0
-					a.config.AppConfig = "{}"
-					a.config.SourceConfig = "{}"
+					a.summary.Cipher = ""
+					a.summary.CurVersion = 0
+					a.summary.CurAppConfig = "{}"
+					a.summary.CurSourceConfig = "{}"
 					for notice := range a.notices {
 						notice <- nil
 					}
@@ -75,17 +76,18 @@ func (s *Service) refresh(curs map[string]map[string]*model.Current) {
 			}
 			continue
 		}
-		for _, a := range g {
-			if _, ok := curg[a.config.AppName]; !ok {
-				log.Info(nil, "[refresh.delapp] group:", a.config.GroupName, "app:", a.config.AppName)
+		for aname, a := range g {
+			if _, ok := curg[aname]; !ok {
+				log.Info(nil, "[refresh.delapp] group:", gname, "app:", aname)
 				if len(a.notices) == 0 {
 					//if there are no watchers,clean right now
-					delete(g, a.config.AppName)
+					delete(g, aname)
 				} else {
 					//if there are watchers,clean will happened when watcher return
-					a.config.CurVersion = 0
-					a.config.AppConfig = "{}"
-					a.config.SourceConfig = "{}"
+					a.summary.Cipher = ""
+					a.summary.CurVersion = 0
+					a.summary.CurAppConfig = "{}"
+					a.summary.CurSourceConfig = "{}"
 					for notice := range a.notices {
 						notice <- nil
 					}
@@ -99,81 +101,78 @@ func (s *Service) refresh(curs map[string]map[string]*model.Current) {
 	}
 	//add new or refresh exist
 	for gname, curg := range curs {
-		g, ok := s.apps[gname]
-		if !ok {
+		g, gok := s.apps[gname]
+		if !gok {
 			g = make(map[string]*app)
-			s.apps[gname] = g
 		}
 		for aname, cura := range curg {
-			log.Info(nil, "[refresh.update] group:", gname, "app:", aname, "version:", cura.CurVersion, "AppConfig:", cura.AppConfig, "SourceConfig:", cura.SourceConfig)
+			log.Info(nil, "[refresh.update] group:", gname, "app:", aname, "version:", cura.CurVersion, "AppConfig:", cura.CurAppConfig, "SourceConfig:", cura.CurSourceConfig)
 			a, ok := g[aname]
 			if !ok {
 				//this is a new
 				if cura.CurVersion == 0 {
-					//curversion 0,this is same as doesn't exist this app
+					//this is same as not exist
 					continue
 				}
-				a = &app{
-					config:  cura,
+				g[aname] = &app{
+					summary: cura,
 					notices: make(map[chan *struct{}]*struct{}),
 				}
-				g[aname] = a
 				continue
 			}
 			//already exist
 			if cura.CurVersion == 0 && len(a.notices) == 0 {
-				//curversion 0,this is same as doesn't exist this app
-				//if there are no watchers,clean right now
+				//this is same as not exist and there are no watchers,clean right now
 				delete(g, aname)
 				continue
 			}
-			a.config = cura
+			a.summary = cura
 			for notice := range a.notices {
 				notice <- nil
 			}
 		}
-		if len(g) == 0 {
+		if !gok && len(g) > 0 {
+			s.apps[gname] = g
+		} else if gok && len(g) == 0 {
 			delete(s.apps, gname)
 		}
 	}
 }
-func (s *Service) update(cur *model.Current) {
-	log.Info(nil, "[update] group:", cur.GroupName, "app:", cur.AppName, "version:", cur.CurVersion, "AppConfig:", cur.AppConfig, "SourceConfig:", cur.SourceConfig)
+func (s *Service) update(gname, aname string, cur *model.Summary) {
+	log.Info(nil, "[update] group:", gname, "app:", aname, "version:", cur.CurVersion, "AppConfig:", cur.CurAppConfig, "SourceConfig:", cur.CurSourceConfig)
 	s.Lock()
 	defer s.Unlock()
-	g, ok := s.apps[cur.GroupName]
-	if !ok {
+	g, gok := s.apps[gname]
+	if !gok {
 		g = make(map[string]*app)
-		s.apps[cur.GroupName] = g
 	}
-	a, ok := g[cur.AppName]
+	defer func() {
+		if !gok && len(g) > 0 {
+			s.apps[gname] = g
+		} else if gok && len(g) == 0 {
+			delete(s.apps, gname)
+		}
+	}()
+	a, ok := g[aname]
 	if !ok {
 		//this is a new
 		if cur.CurVersion == 0 {
-			//curversion 0,this is same as doesn't exist this app
-			if len(g) == 0 {
-				delete(s.apps, cur.GroupName)
-			}
+			//this is same as not exist
 			return
 		}
-		a = &app{
-			config:  cur,
+		g[aname] = &app{
+			summary: cur,
 			notices: make(map[chan *struct{}]*struct{}),
 		}
-		g[cur.AppName] = a
 		return
 	}
 	//already exist
 	if cur.CurVersion == 0 && len(a.notices) == 0 {
-		//curversion 0,this is same as doesn't exist this app
-		//if there are no watchers,clean right now
-		delete(g, a.config.AppName)
-		if len(g) == 0 {
-			delete(s.apps, cur.GroupName)
-		}
+		//this is same as not exist and there are no watchers,clean right now
+		delete(g, aname)
 		return
 	}
-	a.config = cur
+	a.summary = cur
 	for notice := range a.notices {
 		notice <- nil
 	}
@@ -186,15 +185,16 @@ func (s *Service) delgroup(groupname string) {
 		return
 	}
 	log.Info(nil, "[delgroup] group:", groupname)
-	for _, a := range g {
+	for aname, a := range g {
 		if len(a.notices) == 0 {
 			//if there are no watchers,clean right now
-			delete(g, a.config.AppName)
+			delete(g, aname)
 		} else {
 			//if there are watchers,clean will happened when watcher return
-			a.config.CurVersion = 0
-			a.config.AppConfig = "{}"
-			a.config.SourceConfig = "{}"
+			a.summary.Cipher = ""
+			a.summary.CurVersion = 0
+			a.summary.CurAppConfig = "{}"
+			a.summary.CurSourceConfig = "{}"
 			for notice := range a.notices {
 				notice <- nil
 			}
@@ -219,15 +219,16 @@ func (s *Service) delapp(groupname, appname string) {
 	log.Info(nil, "[delapp] group:", groupname, "app:", appname)
 	if len(a.notices) == 0 {
 		//if there are no watchers,clean right now
-		delete(g, a.config.AppName)
+		delete(g, appname)
 		if len(g) == 0 {
 			delete(s.apps, groupname)
 		}
 	} else {
 		//if there are watchers,clean will happened when watcher return
-		a.config.CurVersion = 0
-		a.config.AppConfig = "{}"
-		a.config.SourceConfig = "{}"
+		a.summary.Cipher = ""
+		a.summary.CurVersion = 0
+		a.summary.CurAppConfig = "{}"
+		a.summary.CurSourceConfig = "{}"
 		for notice := range a.notices {
 			notice <- nil
 		}
@@ -244,22 +245,23 @@ func (s *Service) delconfig(groupname, appname, summaryid string) {
 	if !ok {
 		return
 	}
-	if a.config.SummaryID != summaryid {
+	if a.summary.ID.Hex() != summaryid {
 		return
 	}
 	//delete the summary,this is same as delete the app
 	log.Info(nil, "[delconfig] group:", groupname, "app:", appname)
 	if len(a.notices) == 0 {
 		//if there are no watchers,clean right now
-		delete(g, a.config.AppName)
+		delete(g, appname)
 		if len(g) == 0 {
 			delete(s.apps, groupname)
 		}
 	} else {
 		//if there are watchers,clean will happened when watcher return
-		a.config.CurVersion = 0
-		a.config.AppConfig = "{}"
-		a.config.SourceConfig = "{}"
+		a.summary.Cipher = ""
+		a.summary.CurVersion = 0
+		a.summary.CurAppConfig = "{}"
+		a.summary.CurSourceConfig = "{}"
 		for notice := range a.notices {
 			notice <- nil
 		}
@@ -286,22 +288,52 @@ func (s *Service) Apps(ctx context.Context, req *api.AppsReq) (*api.AppsResp, er
 	return &api.AppsResp{Apps: apps}, nil
 }
 
+//create one specific app
+func (s *Service) Create(ctx context.Context, req *api.CreateReq) (*api.CreateResp, error) {
+	if req.Cipher != "" && len(req.Cipher) != 32 {
+		log.Error(ctx, "[Create] group:", req.Groupname, "app:", req.Appname, "error:", ecode.ErrCipherLength)
+		return nil, ecode.ErrCipherLength
+	}
+	if e := s.configDao.MongoCreate(ctx, req.Groupname, req.Appname, req.Cipher, model.Encrypt); e != nil {
+		log.Error(ctx, "[Create] group:", req.Groupname, "app:", req.Appname, "error:", e)
+		if e != ecode.ErrAppAlreadyExist {
+			e = ecode.ErrSystem
+		}
+		return nil, e
+	}
+	return &api.CreateResp{}, nil
+}
+
+//update one specific app's cipher
+func (s *Service) Updatecipher(ctx context.Context, req *api.UpdatecipherReq) (*api.UpdatecipherResp, error) {
+	if req.New != "" && len(req.New) != 32 {
+		log.Error(ctx, "[Updatechiper] group:", req.Groupname, "app:", req.Appname, "error:", ecode.ErrCipherLength)
+		return nil, ecode.ErrCipherLength
+	}
+	if e := s.configDao.MongoUpdateCipher(ctx, req.Groupname, req.Appname, req.Old, req.New, model.Decrypt, model.Encrypt); e != nil {
+		log.Error(ctx, "[Updatechiper] group:", req.Groupname, "app:", req.Appname, "error:", e)
+		if e != ecode.ErrAppNotExist && e != ecode.ErrWrongCipher {
+			e = ecode.ErrSystem
+		}
+		return nil, e
+	}
+	return &api.UpdatecipherResp{}, nil
+}
+
 //get one specific app's config
 func (s *Service) Get(ctx context.Context, req *api.GetReq) (*api.GetResp, error) {
-	summary, config, e := s.configDao.MongoGetConfig(ctx, req.Groupname, req.Appname, req.Index)
+	summary, config, e := s.configDao.MongoGetConfig(ctx, req.Groupname, req.Appname, req.Index, model.Decrypt)
 	if e != nil {
 		log.Error(ctx, "[Get] group:", req.Groupname, "app:", req.Appname, "error:", e)
 		return nil, ecode.ErrSystem
 	}
-	//when MongoGetConfig's param index is 0
-	//summary and config must be both nil or both not nil
 	if summary == nil {
-		return &api.GetResp{}, nil
+		return nil, ecode.ErrAppNotExist
 	}
 	if config == nil {
 		//this can only happened when the index is not 0
 		log.Error(ctx, "[Get] group:", req.Groupname, "app:", req.Appname, "index:", req.Index, "error: doesn't exist")
-		return nil, ecode.ErrReq
+		return nil, ecode.ErrIndexNotExist
 	}
 	return &api.GetResp{
 		CurIndex:     summary.CurIndex,
@@ -327,23 +359,24 @@ func (s *Service) Set(ctx context.Context, req *api.SetReq) (*api.SetResp, error
 		log.Error(ctx, "[Set] group:", req.Groupname, "app:", req.Appname, "SourceConfig data not in json object format")
 		return nil, ecode.ErrReq
 	}
-	if e := s.configDao.MongoSetConfig(ctx, req.Groupname, req.Appname, req.AppConfig, req.SourceConfig); e != nil {
+	if e := s.configDao.MongoSetConfig(ctx, req.Groupname, req.Appname, req.AppConfig, req.SourceConfig, model.Encrypt); e != nil {
 		log.Error(ctx, "[Set] group:", req.Groupname, "app:", req.Appname, "error:", e)
-		return nil, ecode.ErrSystem
+		if e != ecode.ErrAppNotExist {
+			e = ecode.ErrSystem
+		}
+		return nil, e
 	}
 	return &api.SetResp{}, nil
 }
 
 //rollback one specific app's config
 func (s *Service) Rollback(ctx context.Context, req *api.RollbackReq) (*api.RollbackResp, error) {
-	status, e := s.configDao.MongoRollbackConfig(ctx, req.Groupname, req.Appname, req.Index)
-	if e != nil {
+	if e := s.configDao.MongoRollbackConfig(ctx, req.Groupname, req.Appname, req.Index); e != nil {
 		log.Error(ctx, "[Rollback] group:", req.Groupname, "app:", req.Appname, "error:e", e)
-		return nil, ecode.ErrSystem
-	}
-	if !status {
-		log.Error(ctx, "[Rollback] group:", req.Groupname, "app:", req.Appname, "index:", req.Index, "doesn't exist")
-		return nil, ecode.ErrReq
+		if e != ecode.ErrAppNotExist && e != ecode.ErrIndexNotExist {
+			e = ecode.ErrSystem
+		}
+		return nil, e
 	}
 	return &api.RollbackResp{}, nil
 }
@@ -374,62 +407,65 @@ func (s *Service) Watch(ctx context.Context, req *api.WatchReq) (*api.WatchResp,
 	a, ok := g[req.Appname]
 	if !ok {
 		a = &app{
-			config: &model.Current{
-				CurVersion:   0,
-				GroupName:    req.Groupname,
-				AppName:      req.Appname,
-				AppConfig:    "{}",
-				SourceConfig: "{}",
+			summary: &model.Summary{
+				Cipher:          "",
+				CurVersion:      0,
+				CurAppConfig:    "{}",
+				CurSourceConfig: "{}",
 			},
 			notices: make(map[chan *struct{}]*struct{}),
 		}
 		g[req.Appname] = a
 	}
-	if int32(a.config.CurVersion) != req.CurVersion {
+	if int32(a.summary.CurVersion) != req.CurVersion {
 		resp := &api.WatchResp{
-			Version:      int32(a.config.CurVersion),
-			AppConfig:    a.config.AppConfig,
-			SourceConfig: a.config.SourceConfig,
+			Version:      int32(a.summary.CurVersion),
+			AppConfig:    a.summary.CurAppConfig,
+			SourceConfig: a.summary.CurSourceConfig,
 		}
 		s.Unlock()
 		return resp, nil
 	}
-	ch := s.getnotice()
-	a.notices[ch] = nil
-	s.Unlock()
-	select {
-	case <-ctx.Done():
+	for {
+		ch := s.getnotice()
+		a.notices[ch] = nil
+		s.Unlock()
+		select {
+		case <-ctx.Done():
+			s.Lock()
+			defer s.Unlock()
+			delete(a.notices, ch)
+			s.putnotice(ch)
+			if len(a.notices) == 0 && a.summary.CurVersion == 0 {
+				delete(g, req.Appname)
+			}
+			if len(g) == 0 {
+				delete(s.apps, req.Groupname)
+			}
+			return nil, ctx.Err()
+		case _, ok := <-ch:
+			if !ok {
+				return nil, cerror.ErrClosing
+			}
+		}
 		s.Lock()
-		defer s.Unlock()
 		delete(a.notices, ch)
 		s.putnotice(ch)
-		if len(a.notices) == 0 && a.config.CurVersion == 0 {
-			delete(g, a.config.AppName)
+		if len(a.notices) == 0 && a.summary.CurVersion == 0 {
+			delete(g, req.Appname)
 		}
 		if len(g) == 0 {
-			delete(s.apps, a.config.GroupName)
+			delete(s.apps, req.Groupname)
 		}
-		return nil, ctx.Err()
-	case _, ok := <-ch:
-		if !ok {
-			return nil, cerror.ErrClosing
+		if int32(a.summary.CurVersion) != req.CurVersion {
+			s.Unlock()
+			return &api.WatchResp{
+				Version:      int32(a.summary.CurVersion),
+				AppConfig:    a.summary.CurAppConfig,
+				SourceConfig: a.summary.CurSourceConfig,
+			}, nil
 		}
 	}
-	s.Lock()
-	defer s.Unlock()
-	delete(a.notices, ch)
-	s.putnotice(ch)
-	if len(a.notices) == 0 && a.config.CurVersion == 0 {
-		delete(g, a.config.AppName)
-	}
-	if len(g) == 0 {
-		delete(s.apps, a.config.GroupName)
-	}
-	return &api.WatchResp{
-		Version:      int32(a.config.CurVersion),
-		AppConfig:    a.config.AppConfig,
-		SourceConfig: a.config.SourceConfig,
-	}, nil
 }
 
 //Stop -

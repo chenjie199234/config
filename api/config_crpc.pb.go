@@ -17,6 +17,8 @@ import (
 
 var _CrpcPathConfigGroups = "/config.config/groups"
 var _CrpcPathConfigApps = "/config.config/apps"
+var _CrpcPathConfigCreate = "/config.config/create"
+var _CrpcPathConfigUpdatecipher = "/config.config/updatecipher"
 var _CrpcPathConfigGet = "/config.config/get"
 var _CrpcPathConfigSet = "/config.config/set"
 var _CrpcPathConfigRollback = "/config.config/rollback"
@@ -27,6 +29,10 @@ type ConfigCrpcClient interface {
 	Groups(context.Context, *GroupsReq) (*GroupsResp, error)
 	//get all apps in specific group
 	Apps(context.Context, *AppsReq) (*AppsResp, error)
+	//create one specific app
+	Create(context.Context, *CreateReq) (*CreateResp, error)
+	//update one specific app's cipher
+	Updatecipher(context.Context, *UpdatecipherReq) (*UpdatecipherResp, error)
 	//get one specific app's config
 	Get(context.Context, *GetReq) (*GetResp, error)
 	//set one specific app's config
@@ -73,6 +79,42 @@ func (c *configCrpcClient) Apps(ctx context.Context, req *AppsReq) (*AppsResp, e
 		return nil, e
 	}
 	resp := new(AppsResp)
+	if len(respd) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(respd, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
+func (c *configCrpcClient) Create(ctx context.Context, req *CreateReq) (*CreateResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	reqd, _ := proto.Marshal(req)
+	respd, e := c.cc.Call(ctx, _CrpcPathConfigCreate, reqd, metadata.GetMetadata(ctx))
+	if e != nil {
+		return nil, e
+	}
+	resp := new(CreateResp)
+	if len(respd) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(respd, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
+func (c *configCrpcClient) Updatecipher(ctx context.Context, req *UpdatecipherReq) (*UpdatecipherResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	reqd, _ := proto.Marshal(req)
+	respd, e := c.cc.Call(ctx, _CrpcPathConfigUpdatecipher, reqd, metadata.GetMetadata(ctx))
+	if e != nil {
+		return nil, e
+	}
+	resp := new(UpdatecipherResp)
 	if len(respd) == 0 {
 		return resp, nil
 	}
@@ -159,6 +201,10 @@ type ConfigCrpcServer interface {
 	Groups(context.Context, *GroupsReq) (*GroupsResp, error)
 	//get all apps in specific group
 	Apps(context.Context, *AppsReq) (*AppsResp, error)
+	//create one specific app
+	Create(context.Context, *CreateReq) (*CreateResp, error)
+	//update one specific app's cipher
+	Updatecipher(context.Context, *UpdatecipherReq) (*UpdatecipherResp, error)
 	//get one specific app's config
 	Get(context.Context, *GetReq) (*GetResp, error)
 	//set one specific app's config
@@ -207,6 +253,54 @@ func _Config_Apps_CrpcHandler(handler func(context.Context, *AppsReq) (*AppsResp
 		}
 		if resp == nil {
 			resp = new(AppsResp)
+		}
+		respd, _ := proto.Marshal(resp)
+		ctx.Write(respd)
+	}
+}
+func _Config_Create_CrpcHandler(handler func(context.Context, *CreateReq) (*CreateResp, error)) crpc.OutsideHandler {
+	return func(ctx *crpc.Context) {
+		req := new(CreateReq)
+		if e := proto.Unmarshal(ctx.GetBody(), req); e != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.config/create]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(CreateResp)
+		}
+		respd, _ := proto.Marshal(resp)
+		ctx.Write(respd)
+	}
+}
+func _Config_Updatecipher_CrpcHandler(handler func(context.Context, *UpdatecipherReq) (*UpdatecipherResp, error)) crpc.OutsideHandler {
+	return func(ctx *crpc.Context) {
+		req := new(UpdatecipherReq)
+		if e := proto.Unmarshal(ctx.GetBody(), req); e != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.config/updatecipher]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(UpdatecipherResp)
 		}
 		respd, _ := proto.Marshal(resp)
 		ctx.Write(respd)
@@ -313,6 +407,8 @@ func RegisterConfigCrpcServer(engine *crpc.CrpcServer, svc ConfigCrpcServer, all
 	_ = allmids
 	engine.RegisterHandler(_CrpcPathConfigGroups, _Config_Groups_CrpcHandler(svc.Groups))
 	engine.RegisterHandler(_CrpcPathConfigApps, _Config_Apps_CrpcHandler(svc.Apps))
+	engine.RegisterHandler(_CrpcPathConfigCreate, _Config_Create_CrpcHandler(svc.Create))
+	engine.RegisterHandler(_CrpcPathConfigUpdatecipher, _Config_Updatecipher_CrpcHandler(svc.Updatecipher))
 	engine.RegisterHandler(_CrpcPathConfigGet, _Config_Get_CrpcHandler(svc.Get))
 	engine.RegisterHandler(_CrpcPathConfigSet, _Config_Set_CrpcHandler(svc.Set))
 	engine.RegisterHandler(_CrpcPathConfigRollback, _Config_Rollback_CrpcHandler(svc.Rollback))

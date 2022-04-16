@@ -27,6 +27,7 @@ CONFIG_TYPE                             配置类型
                                         0-使用本地配置
                                         1-监听config数据库
 REMOTE_CONFIG_MONGO_URL                 当CONFIG_TYPE为1时,配置中心mongodb的url,[mongodb/mongodb+srv]://[username:password@]host1,...,hostN[/dbname][?param1=value1&...&paramN=valueN]
+                                        (必须要有写权限)
 ```
 
 ## 配置文件

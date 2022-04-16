@@ -15,6 +15,28 @@ func (m *AppsReq) Validate() (errstr string) {
 }
 
 //return empty means pass
+func (m *CreateReq) Validate() (errstr string) {
+	if len(m.GetGroupname()) <= 0 {
+		return "field: groupname in object: create_req check value str len gt failed"
+	}
+	if len(m.GetAppname()) <= 0 {
+		return "field: appname in object: create_req check value str len gt failed"
+	}
+	return ""
+}
+
+//return empty means pass
+func (m *UpdatecipherReq) Validate() (errstr string) {
+	if len(m.GetGroupname()) <= 0 {
+		return "field: groupname in object: updatecipher_req check value str len gt failed"
+	}
+	if len(m.GetAppname()) <= 0 {
+		return "field: appname in object: updatecipher_req check value str len gt failed"
+	}
+	return ""
+}
+
+//return empty means pass
 func (m *GetReq) Validate() (errstr string) {
 	if len(m.GetGroupname()) <= 0 {
 		return "field: groupname in object: get_req check value str len gt failed"

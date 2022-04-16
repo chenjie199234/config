@@ -21,6 +21,8 @@ import (
 
 var _WebPathConfigGroups = "/config.config/groups"
 var _WebPathConfigApps = "/config.config/apps"
+var _WebPathConfigCreate = "/config.config/create"
+var _WebPathConfigUpdatecipher = "/config.config/updatecipher"
 var _WebPathConfigGet = "/config.config/get"
 var _WebPathConfigSet = "/config.config/set"
 var _WebPathConfigRollback = "/config.config/rollback"
@@ -31,6 +33,10 @@ type ConfigWebClient interface {
 	Groups(context.Context, *GroupsReq, http.Header) (*GroupsResp, error)
 	//get all apps in specific group
 	Apps(context.Context, *AppsReq, http.Header) (*AppsResp, error)
+	//create one specific app
+	Create(context.Context, *CreateReq, http.Header) (*CreateResp, error)
+	//update one specific app's cipher
+	Updatecipher(context.Context, *UpdatecipherReq, http.Header) (*UpdatecipherResp, error)
 	//get one specific app's config
 	Get(context.Context, *GetReq, http.Header) (*GetResp, error)
 	//set one specific app's config
@@ -87,6 +93,52 @@ func (c *configWebClient) Apps(ctx context.Context, req *AppsReq, header http.He
 		return nil, e
 	}
 	resp := new(AppsResp)
+	if len(data) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(data, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
+func (c *configWebClient) Create(ctx context.Context, req *CreateReq, header http.Header) (*CreateResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	if header == nil {
+		header = make(http.Header)
+	}
+	header.Set("Content-Type", "application/x-protobuf")
+	header.Set("Accept", "application/x-protobuf")
+	reqd, _ := proto.Marshal(req)
+	data, e := c.cc.Post(ctx, _WebPathConfigCreate, "", header, metadata.GetMetadata(ctx), reqd)
+	if e != nil {
+		return nil, e
+	}
+	resp := new(CreateResp)
+	if len(data) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(data, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
+func (c *configWebClient) Updatecipher(ctx context.Context, req *UpdatecipherReq, header http.Header) (*UpdatecipherResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	if header == nil {
+		header = make(http.Header)
+	}
+	header.Set("Content-Type", "application/x-protobuf")
+	header.Set("Accept", "application/x-protobuf")
+	reqd, _ := proto.Marshal(req)
+	data, e := c.cc.Post(ctx, _WebPathConfigUpdatecipher, "", header, metadata.GetMetadata(ctx), reqd)
+	if e != nil {
+		return nil, e
+	}
+	resp := new(UpdatecipherResp)
 	if len(data) == 0 {
 		return resp, nil
 	}
@@ -193,6 +245,10 @@ type ConfigWebServer interface {
 	Groups(context.Context, *GroupsReq) (*GroupsResp, error)
 	//get all apps in specific group
 	Apps(context.Context, *AppsReq) (*AppsResp, error)
+	//create one specific app
+	Create(context.Context, *CreateReq) (*CreateResp, error)
+	//update one specific app's cipher
+	Updatecipher(context.Context, *UpdatecipherReq) (*UpdatecipherResp, error)
 	//get one specific app's config
 	Get(context.Context, *GetReq) (*GetResp, error)
 	//set one specific app's config
@@ -213,7 +269,7 @@ func _Config_Groups_WebHandler(handler func(context.Context, *GroupsReq) (*Group
 				return
 			}
 			if len(data) > 0 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -251,7 +307,7 @@ func _Config_Groups_WebHandler(handler func(context.Context, *GroupsReq) (*Group
 			}
 			data.AppendByte('}')
 			if data.Len() > 2 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -271,7 +327,7 @@ func _Config_Groups_WebHandler(handler func(context.Context, *GroupsReq) (*Group
 			respd, _ := proto.Marshal(resp)
 			ctx.Write("application/x-protobuf", respd)
 		} else {
-			respd, _ := protojson.MarshalOptions{UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
 			ctx.Write("application/json", respd)
 		}
 	}
@@ -286,7 +342,7 @@ func _Config_Apps_WebHandler(handler func(context.Context, *AppsReq) (*AppsResp,
 				return
 			}
 			if len(data) > 0 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -335,7 +391,7 @@ func _Config_Apps_WebHandler(handler func(context.Context, *AppsReq) (*AppsResp,
 			}
 			data.AppendByte('}')
 			if data.Len() > 2 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -360,7 +416,218 @@ func _Config_Apps_WebHandler(handler func(context.Context, *AppsReq) (*AppsResp,
 			respd, _ := proto.Marshal(resp)
 			ctx.Write("application/x-protobuf", respd)
 		} else {
-			respd, _ := protojson.MarshalOptions{UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			ctx.Write("application/json", respd)
+		}
+	}
+}
+func _Config_Create_WebHandler(handler func(context.Context, *CreateReq) (*CreateResp, error)) web.OutsideHandler {
+	return func(ctx *web.Context) {
+		req := new(CreateReq)
+		if strings.HasPrefix(ctx.GetContentType(), "application/json") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else if strings.HasPrefix(ctx.GetContentType(), "application/x-protobuf") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				if e := proto.Unmarshal(data, req); e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else {
+			if e := ctx.ParseForm(); e != nil {
+				ctx.Abort(error1.ErrReq)
+				return
+			}
+			data := pool.GetBuffer()
+			defer pool.PutBuffer(data)
+			data.AppendByte('{')
+			data.AppendString("\"groupname\":")
+			if form := ctx.GetForm("groupname"); len(form) == 0 {
+				data.AppendString("\"\"")
+			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
+				data.AppendByte('"')
+				data.AppendString(form)
+				data.AppendByte('"')
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte(',')
+			data.AppendString("\"appname\":")
+			if form := ctx.GetForm("appname"); len(form) == 0 {
+				data.AppendString("\"\"")
+			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
+				data.AppendByte('"')
+				data.AppendString(form)
+				data.AppendByte('"')
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte(',')
+			data.AppendString("\"cipher\":")
+			if form := ctx.GetForm("cipher"); len(form) == 0 {
+				data.AppendString("\"\"")
+			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
+				data.AppendByte('"')
+				data.AppendString(form)
+				data.AppendByte('"')
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte('}')
+			if data.Len() > 2 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.config/create]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		ee := error1.ConvertStdError(e)
+		if ee != nil {
+			ctx.Abort(ee)
+			return
+		}
+		if resp == nil {
+			resp = new(CreateResp)
+		}
+		if strings.HasPrefix(ctx.GetAcceptType(), "application/x-protobuf") {
+			respd, _ := proto.Marshal(resp)
+			ctx.Write("application/x-protobuf", respd)
+		} else {
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			ctx.Write("application/json", respd)
+		}
+	}
+}
+func _Config_Updatecipher_WebHandler(handler func(context.Context, *UpdatecipherReq) (*UpdatecipherResp, error)) web.OutsideHandler {
+	return func(ctx *web.Context) {
+		req := new(UpdatecipherReq)
+		if strings.HasPrefix(ctx.GetContentType(), "application/json") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else if strings.HasPrefix(ctx.GetContentType(), "application/x-protobuf") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				if e := proto.Unmarshal(data, req); e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else {
+			if e := ctx.ParseForm(); e != nil {
+				ctx.Abort(error1.ErrReq)
+				return
+			}
+			data := pool.GetBuffer()
+			defer pool.PutBuffer(data)
+			data.AppendByte('{')
+			data.AppendString("\"groupname\":")
+			if form := ctx.GetForm("groupname"); len(form) == 0 {
+				data.AppendString("\"\"")
+			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
+				data.AppendByte('"')
+				data.AppendString(form)
+				data.AppendByte('"')
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte(',')
+			data.AppendString("\"appname\":")
+			if form := ctx.GetForm("appname"); len(form) == 0 {
+				data.AppendString("\"\"")
+			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
+				data.AppendByte('"')
+				data.AppendString(form)
+				data.AppendByte('"')
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte(',')
+			data.AppendString("\"old\":")
+			if form := ctx.GetForm("old"); len(form) == 0 {
+				data.AppendString("\"\"")
+			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
+				data.AppendByte('"')
+				data.AppendString(form)
+				data.AppendByte('"')
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte(',')
+			data.AppendString("\"new\":")
+			if form := ctx.GetForm("new"); len(form) == 0 {
+				data.AppendString("\"\"")
+			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
+				data.AppendByte('"')
+				data.AppendString(form)
+				data.AppendByte('"')
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte('}')
+			if data.Len() > 2 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.config/updatecipher]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		ee := error1.ConvertStdError(e)
+		if ee != nil {
+			ctx.Abort(ee)
+			return
+		}
+		if resp == nil {
+			resp = new(UpdatecipherResp)
+		}
+		if strings.HasPrefix(ctx.GetAcceptType(), "application/x-protobuf") {
+			respd, _ := proto.Marshal(resp)
+			ctx.Write("application/x-protobuf", respd)
+		} else {
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
 			ctx.Write("application/json", respd)
 		}
 	}
@@ -375,7 +642,7 @@ func _Config_Get_WebHandler(handler func(context.Context, *GetReq) (*GetResp, er
 				return
 			}
 			if len(data) > 0 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -431,7 +698,7 @@ func _Config_Get_WebHandler(handler func(context.Context, *GetReq) (*GetResp, er
 			}
 			data.AppendByte('}')
 			if data.Len() > 2 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -456,7 +723,7 @@ func _Config_Get_WebHandler(handler func(context.Context, *GetReq) (*GetResp, er
 			respd, _ := proto.Marshal(resp)
 			ctx.Write("application/x-protobuf", respd)
 		} else {
-			respd, _ := protojson.MarshalOptions{UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
 			ctx.Write("application/json", respd)
 		}
 	}
@@ -471,7 +738,7 @@ func _Config_Set_WebHandler(handler func(context.Context, *SetReq) (*SetResp, er
 				return
 			}
 			if len(data) > 0 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -542,7 +809,7 @@ func _Config_Set_WebHandler(handler func(context.Context, *SetReq) (*SetResp, er
 			}
 			data.AppendByte('}')
 			if data.Len() > 2 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -567,7 +834,7 @@ func _Config_Set_WebHandler(handler func(context.Context, *SetReq) (*SetResp, er
 			respd, _ := proto.Marshal(resp)
 			ctx.Write("application/x-protobuf", respd)
 		} else {
-			respd, _ := protojson.MarshalOptions{UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
 			ctx.Write("application/json", respd)
 		}
 	}
@@ -582,7 +849,7 @@ func _Config_Rollback_WebHandler(handler func(context.Context, *RollbackReq) (*R
 				return
 			}
 			if len(data) > 0 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -638,7 +905,7 @@ func _Config_Rollback_WebHandler(handler func(context.Context, *RollbackReq) (*R
 			}
 			data.AppendByte('}')
 			if data.Len() > 2 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -663,7 +930,7 @@ func _Config_Rollback_WebHandler(handler func(context.Context, *RollbackReq) (*R
 			respd, _ := proto.Marshal(resp)
 			ctx.Write("application/x-protobuf", respd)
 		} else {
-			respd, _ := protojson.MarshalOptions{UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
 			ctx.Write("application/json", respd)
 		}
 	}
@@ -678,7 +945,7 @@ func _Config_Watch_WebHandler(handler func(context.Context, *WatchReq) (*WatchRe
 				return
 			}
 			if len(data) > 0 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -734,7 +1001,7 @@ func _Config_Watch_WebHandler(handler func(context.Context, *WatchReq) (*WatchRe
 			}
 			data.AppendByte('}')
 			if data.Len() > 2 {
-				e := protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
 				if e != nil {
 					ctx.Abort(error1.ErrReq)
 					return
@@ -759,7 +1026,7 @@ func _Config_Watch_WebHandler(handler func(context.Context, *WatchReq) (*WatchRe
 			respd, _ := proto.Marshal(resp)
 			ctx.Write("application/x-protobuf", respd)
 		} else {
-			respd, _ := protojson.MarshalOptions{UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
 			ctx.Write("application/json", respd)
 		}
 	}
@@ -769,6 +1036,8 @@ func RegisterConfigWebServer(engine *web.WebServer, svc ConfigWebServer, allmids
 	_ = allmids
 	engine.Post(_WebPathConfigGroups, _Config_Groups_WebHandler(svc.Groups))
 	engine.Post(_WebPathConfigApps, _Config_Apps_WebHandler(svc.Apps))
+	engine.Post(_WebPathConfigCreate, _Config_Create_WebHandler(svc.Create))
+	engine.Post(_WebPathConfigUpdatecipher, _Config_Updatecipher_WebHandler(svc.Updatecipher))
 	engine.Post(_WebPathConfigGet, _Config_Get_WebHandler(svc.Get))
 	engine.Post(_WebPathConfigSet, _Config_Set_WebHandler(svc.Set))
 	engine.Post(_WebPathConfigRollback, _Config_Rollback_WebHandler(svc.Rollback))

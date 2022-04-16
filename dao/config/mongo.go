@@ -128,9 +128,6 @@ func (d *Dao) MongoUpdateCipher(ctx context.Context, groupname, appname, oldciph
 	}
 	cursor, e := col.Find(sctx, bson.M{"index": bson.M{"$gt": 0}}, options.Find().SetSort(bson.M{"index": -1}))
 	if e != nil {
-		if e == mongo.ErrNoDocuments {
-			e = nil
-		}
 		return
 	}
 	for cursor.Next(sctx) {
@@ -163,9 +160,6 @@ func (d *Dao) MongoGetConfig(ctx context.Context, groupname, appname string, ind
 		filter := bson.M{"$or": bson.A{bson.M{"index": 0}, bson.M{"index": index}}}
 		cursor, e := col.Find(ctx, filter, options.Find().SetSort(bson.M{"index": 1}))
 		if e != nil {
-			if e == mongo.ErrNoDocuments {
-				e = nil
-			}
 			return nil, nil, e
 		}
 		for cursor.Next(ctx) {
@@ -200,11 +194,13 @@ func (d *Dao) MongoGetConfig(ctx context.Context, groupname, appname string, ind
 			SourceConfig: summary.CurSourceConfig,
 		}
 	}
-	if summary.Cipher != "" {
+	if summary != nil && summary.Cipher != "" {
 		summary.CurAppConfig = decrypt(summary.Cipher, summary.CurAppConfig)
 		summary.CurSourceConfig = decrypt(summary.Cipher, summary.CurSourceConfig)
-		config.AppConfig = decrypt(summary.Cipher, config.AppConfig)
-		config.SourceConfig = decrypt(summary.Cipher, config.SourceConfig)
+		if config != nil {
+			config.AppConfig = decrypt(summary.Cipher, config.AppConfig)
+			config.SourceConfig = decrypt(summary.Cipher, config.SourceConfig)
+		}
 	}
 	return summary, config, nil
 }

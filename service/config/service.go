@@ -310,6 +310,9 @@ func (s *Service) Updatecipher(ctx context.Context, req *api.UpdatecipherReq) (*
 		log.Error(ctx, "[Updatechiper] group:", req.Groupname, "app:", req.Appname, "error:", ecode.ErrCipherLength)
 		return nil, ecode.ErrCipherLength
 	}
+	if req.Old == req.New {
+		return &api.UpdatecipherResp{}, nil
+	}
 	if e := s.configDao.MongoUpdateCipher(ctx, req.Groupname, req.Appname, req.Old, req.New, model.Decrypt, model.Encrypt); e != nil {
 		log.Error(ctx, "[Updatechiper] group:", req.Groupname, "app:", req.Appname, "error:", e)
 		if e != ecode.ErrAppNotExist && e != ecode.ErrWrongCipher {

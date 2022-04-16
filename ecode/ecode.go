@@ -21,4 +21,5 @@ var (
 	ErrWrongCipher     = cerror.MakeError(20003, http.StatusBadRequest, "wrong cipher")
 	ErrCipherLength    = cerror.MakeError(20004, http.StatusBadRequest, "cipher must be empty or 32 byte length")
 	ErrIndexNotExist   = cerror.MakeError(20005, http.StatusBadRequest, "config index doesn't exist")
+	ErrConfigFormat    = cerror.MakeError(20001, http.StatusBadRequest, "config must use json object format")
 )

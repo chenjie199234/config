@@ -106,7 +106,6 @@ func (s *Service) refresh(curs map[string]map[string]*model.Summary) {
 			g = make(map[string]*app)
 		}
 		for aname, cura := range curg {
-			log.Info(nil, "[refresh.update] group:", gname, "app:", aname, "version:", cura.CurVersion, "AppConfig:", cura.CurAppConfig, "SourceConfig:", cura.CurSourceConfig)
 			a, ok := g[aname]
 			if !ok {
 				//this is a new
@@ -114,12 +113,14 @@ func (s *Service) refresh(curs map[string]map[string]*model.Summary) {
 					//this is same as not exist
 					continue
 				}
+				log.Info(nil, "[refresh.update] group:", gname, "app:", aname, "version:", cura.CurVersion, "AppConfig:", cura.CurAppConfig, "SourceConfig:", cura.CurSourceConfig)
 				g[aname] = &app{
 					summary: cura,
 					notices: make(map[chan *struct{}]*struct{}),
 				}
 				continue
 			}
+			log.Info(nil, "[refresh.update] group:", gname, "app:", aname, "version:", cura.CurVersion, "AppConfig:", cura.CurAppConfig, "SourceConfig:", cura.CurSourceConfig)
 			//already exist
 			if cura.CurVersion == 0 && len(a.notices) == 0 {
 				//this is same as not exist and there are no watchers,clean right now
@@ -139,7 +140,6 @@ func (s *Service) refresh(curs map[string]map[string]*model.Summary) {
 	}
 }
 func (s *Service) update(gname, aname string, cur *model.Summary) {
-	log.Info(nil, "[update] group:", gname, "app:", aname, "version:", cur.CurVersion, "AppConfig:", cur.CurAppConfig, "SourceConfig:", cur.CurSourceConfig)
 	s.Lock()
 	defer s.Unlock()
 	g, gok := s.apps[gname]
@@ -160,12 +160,14 @@ func (s *Service) update(gname, aname string, cur *model.Summary) {
 			//this is same as not exist
 			return
 		}
+		log.Info(nil, "[update] group:", gname, "app:", aname, "version:", cur.CurVersion, "AppConfig:", cur.CurAppConfig, "SourceConfig:", cur.CurSourceConfig)
 		g[aname] = &app{
 			summary: cur,
 			notices: make(map[chan *struct{}]*struct{}),
 		}
 		return
 	}
+	log.Info(nil, "[update] group:", gname, "app:", aname, "version:", cur.CurVersion, "AppConfig:", cur.CurAppConfig, "SourceConfig:", cur.CurSourceConfig)
 	//already exist
 	if cur.CurVersion == 0 && len(a.notices) == 0 {
 		//this is same as not exist and there are no watchers,clean right now
@@ -246,10 +248,11 @@ func (s *Service) delconfig(groupname, appname, summaryid string) {
 		return
 	}
 	if a.summary.ID.Hex() != summaryid {
+		log.Info(nil, "[delconfig] group:", groupname, "app:", appname, "config")
 		return
 	}
 	//delete the summary,this is same as delete the app
-	log.Info(nil, "[delconfig] group:", groupname, "app:", appname)
+	log.Info(nil, "[delconfig] group:", groupname, "app:", appname, "summary")
 	if len(a.notices) == 0 {
 		//if there are no watchers,clean right now
 		delete(g, appname)
@@ -353,14 +356,12 @@ func (s *Service) Set(ctx context.Context, req *api.SetReq) (*api.SetResp, error
 	if req.AppConfig == "" {
 		req.AppConfig = "{}"
 	} else if len(req.AppConfig) < 2 || req.AppConfig[0] != '{' || req.AppConfig[len(req.AppConfig)-1] != '}' || !json.Valid(common.Str2byte(req.AppConfig)) {
-		log.Error(ctx, "[Set] group:", req.Groupname, "app:", req.Appname, "AppConfig data not in json object format")
-		return nil, ecode.ErrReq
+		return nil, ecode.ErrConfigFormat
 	}
 	if req.SourceConfig == "" {
 		req.SourceConfig = "{}"
 	} else if len(req.SourceConfig) < 2 || req.SourceConfig[0] != '{' || req.SourceConfig[len(req.SourceConfig)-1] != '}' || !json.Valid(common.Str2byte(req.SourceConfig)) {
-		log.Error(ctx, "[Set] group:", req.Groupname, "app:", req.Appname, "SourceConfig data not in json object format")
-		return nil, ecode.ErrReq
+		return nil, ecode.ErrConfigFormat
 	}
 	if e := s.configDao.MongoSetConfig(ctx, req.Groupname, req.Appname, req.AppConfig, req.SourceConfig, model.Encrypt); e != nil {
 		log.Error(ctx, "[Set] group:", req.Groupname, "app:", req.Appname, "error:", e)

@@ -181,7 +181,7 @@ func (d *Dao) MongoGetConfig(ctx context.Context, groupname, appname string, ind
 			return nil, nil, e
 		}
 	} else {
-		summary := &model.Summary{}
+		summary = &model.Summary{}
 		if e := col.FindOne(ctx, bson.M{"index": 0}).Decode(summary); e != nil {
 			if e == mongo.ErrNoDocuments {
 				e = nil

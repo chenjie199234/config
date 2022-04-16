@@ -306,6 +306,13 @@ func newMongo(url string, groupname string) (db *mongo.Client, e error) {
 		}
 	}()
 	col := db.Database("config_" + groupname).Collection("config")
+	index := mongo.IndexModel{
+		Keys:    bson.D{primitive.E{Key: "index", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	if _, e = col.Indexes().CreateOne(sctx, index); e != nil {
+		return
+	}
 	appconfig := defaultAppConfig
 	sourceconfig := fmt.Sprintf(defaultSourceConfig, url)
 	if _, e = col.InsertOne(sctx, bson.M{
@@ -317,13 +324,6 @@ func newMongo(url string, groupname string) (db *mongo.Client, e error) {
 		"cur_app_config":    appconfig,
 		"cur_source_config": sourceconfig,
 	}); e != nil {
-		return
-	}
-	index := mongo.IndexModel{
-		Keys:    bson.D{primitive.E{Key: "index", Value: 1}},
-		Options: options.Index().SetUnique(true),
-	}
-	if _, e = col.Indexes().CreateOne(sctx, index); e != nil {
 		return
 	}
 	if _, e = col.UpdateOne(sctx, bson.M{"index": 1}, bson.M{"$set": bson.M{"app_config": appconfig, "source_config": sourceconfig}}, options.Update().SetUpsert(true)); e != nil {

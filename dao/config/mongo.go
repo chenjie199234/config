@@ -56,6 +56,13 @@ func (d *Dao) MongoCreate(ctx context.Context, groupname, appname, cipher string
 		}
 	}()
 	col := d.mongo.Database("config_" + groupname).Collection(appname)
+	index := mongo.IndexModel{
+		Keys:    bson.D{primitive.E{Key: "index", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	if _, e = col.Indexes().CreateOne(sctx, index); e != nil {
+		return
+	}
 	appconfig := "{}"
 	sourceconfig := "{}"
 	if cipher != "" {
@@ -71,13 +78,6 @@ func (d *Dao) MongoCreate(ctx context.Context, groupname, appname, cipher string
 		"cur_app_config":    appconfig,
 		"cur_source_config": sourceconfig,
 	}); e != nil {
-		return
-	}
-	index := mongo.IndexModel{
-		Keys:    bson.D{primitive.E{Key: "index", Value: 1}},
-		Options: options.Index().SetUnique(true),
-	}
-	if _, e = col.Indexes().CreateOne(sctx, index); e != nil {
 		return
 	}
 	return

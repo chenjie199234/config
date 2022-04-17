@@ -437,7 +437,6 @@ func (s *Service) Watch(ctx context.Context, req *api.WatchReq) (*api.WatchResp,
 		select {
 		case <-ctx.Done():
 			s.Lock()
-			defer s.Unlock()
 			delete(a.notices, ch)
 			s.putnotice(ch)
 			if len(a.notices) == 0 && a.summary.CurVersion == 0 {
@@ -446,6 +445,7 @@ func (s *Service) Watch(ctx context.Context, req *api.WatchReq) (*api.WatchResp,
 			if len(g) == 0 {
 				delete(s.apps, req.Groupname)
 			}
+			s.Unlock()
 			return nil, ctx.Err()
 		case _, ok := <-ch:
 			if !ok {
@@ -455,13 +455,13 @@ func (s *Service) Watch(ctx context.Context, req *api.WatchReq) (*api.WatchResp,
 		s.Lock()
 		delete(a.notices, ch)
 		s.putnotice(ch)
-		if len(a.notices) == 0 && a.summary.CurVersion == 0 {
-			delete(g, req.Appname)
-		}
-		if len(g) == 0 {
-			delete(s.apps, req.Groupname)
-		}
 		if int32(a.summary.CurVersion) != req.CurVersion {
+			if len(a.notices) == 0 && a.summary.CurVersion == 0 {
+				delete(g, req.Appname)
+			}
+			if len(g) == 0 {
+				delete(s.apps, req.Groupname)
+			}
 			s.Unlock()
 			return &api.WatchResp{
 				Version:      int32(a.summary.CurVersion),

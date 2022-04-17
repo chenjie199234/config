@@ -37,7 +37,7 @@ type Config struct {
 
 //this is the server's secret
 //must be aes.BlockSize length
-const iv = "chenjie_1992_3_4"
+const servercipher = "chenjie_1992_3_4"
 
 func pkcs7Padding(origin []byte, blockSize int) []byte {
 	padding := blockSize - len(origin)%blockSize
@@ -63,13 +63,13 @@ func Decrypt(cipherkey, origin string) string {
 		return ""
 	}
 	block, _ := aes.NewCipher(common.Str2byte(cipherkey))
-	cipher.NewCBCDecrypter(block, common.Str2byte(iv)).CryptBlocks(data, data)
+	cipher.NewCBCDecrypter(block, common.Str2byte(servercipher)).CryptBlocks(data, data)
 	data = pkcs7UnPadding(data)
 	return common.Byte2str(data)
 }
 func Encrypt(cipherkey, origin string) string {
 	data := pkcs7Padding([]byte(origin), aes.BlockSize)
 	block, _ := aes.NewCipher(common.Str2byte(cipherkey))
-	cipher.NewCBCEncrypter(block, common.Str2byte(iv)).CryptBlocks(data, data)
+	cipher.NewCBCEncrypter(block, common.Str2byte(servercipher)).CryptBlocks(data, data)
 	return hex.EncodeToString(data)
 }

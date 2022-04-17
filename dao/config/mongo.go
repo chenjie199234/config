@@ -204,7 +204,7 @@ func (d *Dao) MongoGetConfig(ctx context.Context, groupname, appname string, ind
 	}
 	return summary, config, nil
 }
-func (d *Dao) MongoSetConfig(ctx context.Context, groupname, appname, appconfig, sourceconfig string, encrypt datahandler) (e error) {
+func (d *Dao) MongoSetConfig(ctx context.Context, groupname, appname, appconfig, sourceconfig string, encrypt datahandler) (newindex uint32, e error) {
 	var s mongo.Session
 	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
@@ -251,6 +251,7 @@ func (d *Dao) MongoSetConfig(ctx context.Context, groupname, appname, appconfig,
 	if _, e = col.UpdateOne(sctx, bson.M{"index": summary.MaxIndex + 1}, bson.M{"$set": updateConfig}, options.Update().SetUpsert(true)); e != nil {
 		return
 	}
+	newindex = summary.MaxIndex + 1
 	return
 }
 func (d *Dao) MongoRollbackConfig(ctx context.Context, groupname, appname string, index uint32) (e error) {

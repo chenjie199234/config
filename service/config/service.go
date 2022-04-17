@@ -54,7 +54,7 @@ func (s *Service) refresh(curs map[string]map[string]*model.Summary) {
 	for gname, g := range s.apps {
 		curg, ok := curs[gname]
 		if !ok {
-			log.Info(nil, "[refresh.delgroup] group:", gname)
+			log.Debug(nil, "[refresh.delgroup] group:", gname)
 			for aname, a := range g {
 				if len(a.notices) == 0 {
 					//if there are no watchers,clean right now
@@ -78,7 +78,7 @@ func (s *Service) refresh(curs map[string]map[string]*model.Summary) {
 		}
 		for aname, a := range g {
 			if _, ok := curg[aname]; !ok {
-				log.Info(nil, "[refresh.delapp] group:", gname, "app:", aname)
+				log.Debug(nil, "[refresh.delapp] group:", gname, "app:", aname)
 				if len(a.notices) == 0 {
 					//if there are no watchers,clean right now
 					delete(g, aname)
@@ -106,6 +106,7 @@ func (s *Service) refresh(curs map[string]map[string]*model.Summary) {
 			g = make(map[string]*app)
 		}
 		for aname, cura := range curg {
+			log.Debug(nil, "[refresh.update] group:", gname, "app:", aname, "version:", cura.CurVersion, "AppConfig:", cura.CurAppConfig, "SourceConfig:", cura.CurSourceConfig)
 			a, ok := g[aname]
 			if !ok {
 				//this is a new
@@ -113,14 +114,12 @@ func (s *Service) refresh(curs map[string]map[string]*model.Summary) {
 					//this is same as not exist
 					continue
 				}
-				log.Info(nil, "[refresh.update] group:", gname, "app:", aname, "version:", cura.CurVersion, "AppConfig:", cura.CurAppConfig, "SourceConfig:", cura.CurSourceConfig)
 				g[aname] = &app{
 					summary: cura,
 					notices: make(map[chan *struct{}]*struct{}),
 				}
 				continue
 			}
-			log.Info(nil, "[refresh.update] group:", gname, "app:", aname, "version:", cura.CurVersion, "AppConfig:", cura.CurAppConfig, "SourceConfig:", cura.CurSourceConfig)
 			//already exist
 			if cura.CurVersion == 0 && len(a.notices) == 0 {
 				//this is same as not exist and there are no watchers,clean right now
@@ -140,6 +139,7 @@ func (s *Service) refresh(curs map[string]map[string]*model.Summary) {
 	}
 }
 func (s *Service) update(gname, aname string, cur *model.Summary) {
+	log.Debug(nil, "[update] group:", gname, "app:", aname, "version:", cur.CurVersion, "AppConfig:", cur.CurAppConfig, "SourceConfig:", cur.CurSourceConfig)
 	s.Lock()
 	defer s.Unlock()
 	g, gok := s.apps[gname]
@@ -160,14 +160,12 @@ func (s *Service) update(gname, aname string, cur *model.Summary) {
 			//this is same as not exist
 			return
 		}
-		log.Info(nil, "[update] group:", gname, "app:", aname, "version:", cur.CurVersion, "AppConfig:", cur.CurAppConfig, "SourceConfig:", cur.CurSourceConfig)
 		g[aname] = &app{
 			summary: cur,
 			notices: make(map[chan *struct{}]*struct{}),
 		}
 		return
 	}
-	log.Info(nil, "[update] group:", gname, "app:", aname, "version:", cur.CurVersion, "AppConfig:", cur.CurAppConfig, "SourceConfig:", cur.CurSourceConfig)
 	//already exist
 	if cur.CurVersion == 0 && len(a.notices) == 0 {
 		//this is same as not exist and there are no watchers,clean right now
@@ -180,13 +178,13 @@ func (s *Service) update(gname, aname string, cur *model.Summary) {
 	}
 }
 func (s *Service) delgroup(groupname string) {
+	log.Debug(nil, "[delgroup] group:", groupname)
 	s.Lock()
 	defer s.Unlock()
 	g, ok := s.apps[groupname]
 	if !ok {
 		return
 	}
-	log.Info(nil, "[delgroup] group:", groupname)
 	for aname, a := range g {
 		if len(a.notices) == 0 {
 			//if there are no watchers,clean right now
@@ -208,6 +206,7 @@ func (s *Service) delgroup(groupname string) {
 	}
 }
 func (s *Service) delapp(groupname, appname string) {
+	log.Debug(nil, "[delapp] group:", groupname, "app:", appname)
 	s.Lock()
 	defer s.Unlock()
 	g, ok := s.apps[groupname]
@@ -218,7 +217,6 @@ func (s *Service) delapp(groupname, appname string) {
 	if !ok {
 		return
 	}
-	log.Info(nil, "[delapp] group:", groupname, "app:", appname)
 	if len(a.notices) == 0 {
 		//if there are no watchers,clean right now
 		delete(g, appname)
@@ -248,11 +246,11 @@ func (s *Service) delconfig(groupname, appname, summaryid string) {
 		return
 	}
 	if a.summary.ID.Hex() != summaryid {
-		log.Info(nil, "[delconfig] group:", groupname, "app:", appname, "config")
+		log.Debug(nil, "[delconfig] group:", groupname, "app:", appname, "config")
 		return
 	}
 	//delete the summary,this is same as delete the app
-	log.Info(nil, "[delconfig] group:", groupname, "app:", appname, "summary")
+	log.Debug(nil, "[delconfig] group:", groupname, "app:", appname, "summary")
 	if len(a.notices) == 0 {
 		//if there are no watchers,clean right now
 		delete(g, appname)
@@ -304,6 +302,7 @@ func (s *Service) Create(ctx context.Context, req *api.CreateReq) (*api.CreateRe
 		}
 		return nil, e
 	}
+	log.Info(ctx, "[Create] group:", req.Groupname, "app:", req.Appname, "success")
 	return &api.CreateResp{}, nil
 }
 
@@ -323,6 +322,7 @@ func (s *Service) Updatecipher(ctx context.Context, req *api.UpdatecipherReq) (*
 		}
 		return nil, e
 	}
+	log.Info(ctx, "[Updatecipher] group:", req.GetGroupname, "app:", req.Appname, "success")
 	return &api.UpdatecipherResp{}, nil
 }
 
@@ -363,13 +363,15 @@ func (s *Service) Set(ctx context.Context, req *api.SetReq) (*api.SetResp, error
 	} else if len(req.SourceConfig) < 2 || req.SourceConfig[0] != '{' || req.SourceConfig[len(req.SourceConfig)-1] != '}' || !json.Valid(common.Str2byte(req.SourceConfig)) {
 		return nil, ecode.ErrConfigFormat
 	}
-	if e := s.configDao.MongoSetConfig(ctx, req.Groupname, req.Appname, req.AppConfig, req.SourceConfig, model.Encrypt); e != nil {
+	index, e := s.configDao.MongoSetConfig(ctx, req.Groupname, req.Appname, req.AppConfig, req.SourceConfig, model.Encrypt)
+	if e != nil {
 		log.Error(ctx, "[Set] group:", req.Groupname, "app:", req.Appname, "error:", e)
 		if e != ecode.ErrAppNotExist {
 			e = ecode.ErrSystem
 		}
 		return nil, e
 	}
+	log.Info(ctx, "[Set] group:", req.Groupname, "app:", req.Appname, "index:", index, "success")
 	return &api.SetResp{}, nil
 }
 
@@ -382,6 +384,7 @@ func (s *Service) Rollback(ctx context.Context, req *api.RollbackReq) (*api.Roll
 		}
 		return nil, e
 	}
+	log.Info(ctx, "[Rollback] group:", req.Groupname, "app:", req.Appname, "index:", req.Index, "success")
 	return &api.RollbackResp{}, nil
 }
 

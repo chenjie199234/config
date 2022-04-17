@@ -2,6 +2,7 @@
 ![image](config.jpg)
 
 **如需在生产环境使用,请修改model/config.go中的servicecipher**
+
 **如需在生产环境使用,建议对编译后的二进制文件使用upx等软件加壳压缩**
 ```
 config是一个微服务.

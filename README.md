@@ -1,7 +1,9 @@
 # config
 ![image](config.jpg)
+**如需在生产环境使用,请修改model/config.go中的servicecipher**
+**如需在生产环境使用,建议对编译后的二进制文件使用upx等软件加壳压缩**
 ```
-config是一个微服务.(如需在生产环境使用,请修改model/config.go中的servicecipher)
+config是一个微服务.
 运行cmd脚本可查看使用方法.windows下将./cmd.sh换为cmd.bat
 ./cmd.sh help 输出帮助信息
 ./cmd.sh pb 解析proto文件,生成桩代码

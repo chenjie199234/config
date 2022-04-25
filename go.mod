@@ -3,7 +3,7 @@ module github.com/chenjie199234/config
 go 1.18
 
 require (
-	github.com/chenjie199234/Corelib v0.0.70
+	github.com/chenjie199234/Corelib v0.0.67
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/segmentio/kafka-go v0.4.31
@@ -12,11 +12,11 @@ require (
 )
 
 require (
+	github.com/chenjie199234/httprouter v1.3.2 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/gomodule/redigo v1.8.8 // indirect
-	github.com/julienschmidt/httprouter v1.3.0 // indirect
 	github.com/klauspost/compress v1.14.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

@@ -1,6 +1,7 @@
 package selfsdk
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -333,6 +334,7 @@ func newMongo(url string, groupname string) (db *mongo.Client, e error) {
 }
 
 func updateApp(appconfig []byte) error {
+	appconfig = bytes.TrimSpace(appconfig)
 	if len(appconfig) == 0 {
 		appconfig = []byte{'{', '}'}
 	}
@@ -364,6 +366,7 @@ func updateApp(appconfig []byte) error {
 	return nil
 }
 func updateSource(sourceconfig []byte) error {
+	sourceconfig = bytes.TrimSpace(sourceconfig)
 	if len(sourceconfig) == 0 {
 		sourceconfig = []byte{'{', '}'}
 	}

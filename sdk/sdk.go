@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	"github.com/chenjie199234/config/api"
-	// "github.com/chenjie199234/config/sdk/internal/service"
 
 	"github.com/chenjie199234/Corelib/log"
 	"github.com/chenjie199234/Corelib/trace"
@@ -77,6 +77,7 @@ func NewServiceSdk(selfgroup, selfname, configServiceGroup, configServiceHost st
 	return nil
 }
 func updateApp(appconfig []byte) error {
+	appconfig = bytes.TrimSpace(appconfig)
 	if len(appconfig) == 0 {
 		appconfig = []byte{'{', '}'}
 	}
@@ -108,6 +109,7 @@ func updateApp(appconfig []byte) error {
 	return nil
 }
 func updateSource(sourceconfig []byte) error {
+	sourceconfig = bytes.TrimSpace(sourceconfig)
 	if len(sourceconfig) == 0 {
 		sourceconfig = []byte{'{', '}'}
 	}

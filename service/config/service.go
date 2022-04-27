@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 
 	"github.com/chenjie199234/config/api"
@@ -353,11 +354,13 @@ func (s *Service) Get(ctx context.Context, req *api.GetReq) (*api.GetResp, error
 
 //set one specific app's config
 func (s *Service) Set(ctx context.Context, req *api.SetReq) (*api.SetResp, error) {
+	req.AppConfig = strings.TrimSpace(req.AppConfig)
 	if req.AppConfig == "" {
 		req.AppConfig = "{}"
 	} else if len(req.AppConfig) < 2 || req.AppConfig[0] != '{' || req.AppConfig[len(req.AppConfig)-1] != '}' || !json.Valid(common.Str2byte(req.AppConfig)) {
 		return nil, ecode.ErrConfigFormat
 	}
+	req.SourceConfig = strings.TrimSpace(req.SourceConfig)
 	if req.SourceConfig == "" {
 		req.SourceConfig = "{}"
 	} else if len(req.SourceConfig) < 2 || req.SourceConfig[0] != '{' || req.SourceConfig[len(req.SourceConfig)-1] != '}' || !json.Valid(common.Str2byte(req.SourceConfig)) {

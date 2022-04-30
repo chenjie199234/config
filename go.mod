@@ -3,7 +3,7 @@ module github.com/chenjie199234/config
 go 1.18
 
 require (
-	github.com/chenjie199234/Corelib v0.0.70
+	github.com/chenjie199234/Corelib v0.0.71
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/segmentio/kafka-go v0.4.31
@@ -12,7 +12,6 @@ require (
 )
 
 require (
-	github.com/chenjie199234/httprouter v1.3.2 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
@@ -32,5 +31,5 @@ require (
 	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect
-	google.golang.org/grpc v1.45.0 // indirect
+	google.golang.org/grpc v1.46.0 // indirect
 )

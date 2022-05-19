@@ -12,7 +12,6 @@ import (
 	"github.com/chenjie199234/config/api"
 
 	"github.com/chenjie199234/Corelib/log"
-	"github.com/chenjie199234/Corelib/trace"
 	"github.com/chenjie199234/Corelib/util/common"
 	"github.com/chenjie199234/Corelib/util/host"
 	"github.com/chenjie199234/Corelib/web"
@@ -33,7 +32,7 @@ func NewServiceSdk(selfgroup, selfname, configServiceGroup, configServiceHost st
 		return e
 	}
 	client := api.NewConfigWebClient(webclient)
-	ctx := trace.InitTrace(context.Background(), "", selfgroup+"."+selfname, host.Hostip, "watch", "remoteconfig", 0)
+	ctx := log.InitTrace(context.Background(), "", selfgroup+"."+selfname, host.Hostip, "watch", "remoteconfig", 0)
 	resp, e := client.Watch(ctx, &api.WatchReq{
 		Groupname:  selfgroup,
 		Appname:    selfname,

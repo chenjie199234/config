@@ -23,6 +23,7 @@ help() {
 
 pb() {
 	rm ./api/*.pb.go
+	rm ./api/*.md
 	go mod tidy
 	corelib=$(go list -m -f "{{.Dir}}" github.com/chenjie199234/Corelib)
 	workdir=$(pwd)
@@ -34,6 +35,7 @@ pb() {
 	protoc -I ./ -I $corelib --go-cgrpc_out=paths=source_relative:. ./api/*.proto
 	protoc -I ./ -I $corelib --go-crpc_out=paths=source_relative:. ./api/*.proto
 	protoc -I ./ -I $corelib --go-web_out=paths=source_relative:. ./api/*.proto
+	protoc -I ./ -I $corelib --go-markdown_out=paths=source_relative:. ./api/*.proto
 	go mod tidy
 }
 

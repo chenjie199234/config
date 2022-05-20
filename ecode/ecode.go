@@ -15,6 +15,7 @@ var (
 	ErrLimit    = cerror.ErrLimit    //10005 // http code 503
 	ErrBan      = cerror.ErrBan      //10006 // http code 403
 	ErrNotExist = cerror.ErrNotExist //10007 // http code 404
+	ErrBusy     = cerror.ErrBusy     //10008 // http code 503
 
 	ErrAppNotExist     = cerror.MakeError(20001, http.StatusBadRequest, "app doesn't exist")
 	ErrAppAlreadyExist = cerror.MakeError(20002, http.StatusBadRequest, "app already exist")

@@ -26,10 +26,10 @@ require (
 	github.com/xdg/stringprep v1.0.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	golang.org/x/crypto v0.0.0-20201216223049-8b5274cf687f // indirect
-	golang.org/x/net v0.0.0-20220325170049-de3da57026de // indirect
+	golang.org/x/net v0.0.0-20220517181318-183a9ca12b87 // indirect
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect
-	google.golang.org/grpc v1.46.0 // indirect
+	google.golang.org/grpc v1.46.2 // indirect
 )

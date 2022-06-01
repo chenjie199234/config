@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/chenjie199234/config/ecode"
 	"github.com/chenjie199234/config/model"
@@ -38,7 +39,55 @@ func (d *Dao) MongoGetUser(ctx context.Context, userid primitive.ObjectID) (*mod
 	return user, nil
 }
 
-//if nodeids is not empty or nil,only the node in the required nodeids will return
+//if nodeid's length is 1 or 0,means delete this user
+//if nodeid's length > 1,means delete this user from this node
+func (d *Dao) MongoDelUser(ctx context.Context, operateUserid primitive.ObjectID, delUserid primitive.ObjectID, nodeid []uint32) (e error) {
+	noderoute := make([][]uint32, 0, len(nodeid))
+	for i := range nodeid {
+		noderoute = append(noderoute, nodeid[:i+1])
+	}
+	var s mongo.Session
+	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
+	if e != nil {
+		return
+	}
+	defer s.EndSession(ctx)
+	sctx := mongo.NewSessionContext(ctx, s)
+	if e = s.StartTransaction(); e != nil {
+		return
+	}
+	defer func() {
+		if e != nil {
+			s.AbortTransaction(sctx)
+		} else if e = s.CommitTransaction(sctx); e != nil {
+			s.AbortTransaction(sctx)
+		}
+	}()
+	//check admin
+	var usernodes *model.UserNodes
+	usernodes, e = d.MongoGetUserNodes(sctx, operateUserid, noderoute)
+	if e != nil {
+		return
+	}
+	if _, _, x := usernodes.CheckNode(nodeid); !x {
+		e = ecode.ErrPermission
+		return
+	}
+	//all check success,delete database
+	filter := bson.M{"user_id": delUserid}
+	for i, v := range nodeid {
+		filter["node_id."+strconv.Itoa(i)] = v
+	}
+	if _, e = d.mongo.Database("admin").Collection("usernode").DeleteMany(sctx, filter); e != nil {
+		return
+	}
+	if len(nodeid) <= 1 {
+		_, e = d.mongo.Database("admin").Collection("user").DeleteOne(sctx, bson.M{"_id": delUserid})
+	}
+	return
+}
+
+//if nodeids are not empty or nil,only the node in the required nodeids will return
 func (d *Dao) MongoGetUserNodes(ctx context.Context, userid primitive.ObjectID, nodeids [][]uint32) (*model.UserNodes, error) {
 	filter := bson.M{"user_id": userid}
 	if len(nodeids) > 0 {
@@ -72,7 +121,7 @@ func (d *Dao) MongoGetUserNodes(ctx context.Context, userid primitive.ObjectID, 
 	return result, cursor.Err()
 }
 
-//if userids is not empty or nil,only the user in the required userids will return
+//if userids are not empty or nil,only the user in the required userids will return
 func (d *Dao) MongoGetNodeUsers(ctx context.Context, nodeid []uint32, userids []primitive.ObjectID) (*model.NodeUsers, error) {
 	filter := bson.M{"node_id": nodeid}
 	if len(userids) > 0 {
@@ -105,7 +154,11 @@ func (d *Dao) MongoGetNodeUsers(ctx context.Context, nodeid []uint32, userids []
 	}
 	return result, cursor.Err()
 }
-func (d *Dao) MongoAddNode(ctx context.Context, userid primitive.ObjectID, pnodeid []uint32, name, data string) (e error) {
+func (d *Dao) MongoAddNode(ctx context.Context, operateUserid primitive.ObjectID, pnodeid []uint32, name, data string) (e error) {
+	noderoute := make([][]uint32, 0, len(pnodeid))
+	for i := range pnodeid {
+		noderoute = append(noderoute, pnodeid[:i+1])
+	}
 	var s mongo.Session
 	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
@@ -134,16 +187,12 @@ func (d *Dao) MongoAddNode(ctx context.Context, userid primitive.ObjectID, pnode
 	}
 	//check admin
 	var usernodes *model.UserNodes
-	noderoute := make([][]uint32, 0, len(pnodeid))
-	for i := range pnodeid {
-		noderoute = append(noderoute, pnodeid[:i+1])
-	}
-	usernodes, e = d.MongoGetUserNodes(sctx, userid, noderoute)
+	usernodes, e = d.MongoGetUserNodes(sctx, operateUserid, noderoute)
 	if e != nil {
 		return
 	}
 	if _, _, x := usernodes.CheckNode(pnodeid); !x {
-		e = ecode.ErrAuth
+		e = ecode.ErrPermission
 		return
 	}
 	//all check success,modify database
@@ -169,7 +218,11 @@ func (d *Dao) MongoAddNode(ctx context.Context, userid primitive.ObjectID, pnode
 	}
 	return
 }
-func (d *Dao) MongoUpdateNode(ctx context.Context, userid primitive.ObjectID, nodeid []uint32, name, data string) (e error) {
+func (d *Dao) MongoUpdateNode(ctx context.Context, operateUserid primitive.ObjectID, nodeid []uint32, name, data string) (e error) {
+	noderoute := make([][]uint32, 0, len(nodeid))
+	for i := range nodeid {
+		noderoute = append(noderoute, nodeid[:i+1])
+	}
 	var s mongo.Session
 	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
@@ -189,54 +242,40 @@ func (d *Dao) MongoUpdateNode(ctx context.Context, userid primitive.ObjectID, no
 	}()
 	//check admin
 	var usernodes *model.UserNodes
-	noderoute := make([][]uint32, 0, len(nodeid))
-	for i := range nodeid {
-		noderoute = append(noderoute, nodeid[:i+1])
-	}
-	usernodes, e = d.MongoGetUserNodes(sctx, userid, noderoute)
+	usernodes, e = d.MongoGetUserNodes(sctx, operateUserid, noderoute)
 	if e != nil {
 		return
 	}
 	if _, _, x := usernodes.CheckNode(nodeid); !x {
-		e = ecode.ErrAuth
+		e = ecode.ErrPermission
 		return
 	}
-	//all check success,modify database
+	//all check success,update database
 	_, e = d.mongo.Database("admin").Collection("node").UpdateOne(sctx, bson.M{"node_id": nodeid}, bson.M{"$set": bson.M{"node_name": name, "node_data": data}})
 	return
 }
-func (d *Dao) MongoListNode(ctx context.Context, userid primitive.ObjectID, pnodeid []uint32) (nodes []*model.Node, e error) {
+func (d *Dao) MongoListNode(ctx context.Context, operateUserid primitive.ObjectID, pnodeid []uint32) (nodes []*model.Node, e error) {
 	//check canread or admin
-	var usernodes *model.UserNodes
 	noderoute := make([][]uint32, 0, len(pnodeid))
 	for i := range pnodeid {
 		noderoute = append(noderoute, pnodeid[:i+1])
 	}
-	usernodes, e = d.MongoGetUserNodes(ctx, userid, noderoute)
+	var usernodes *model.UserNodes
+	usernodes, e = d.MongoGetUserNodes(ctx, operateUserid, noderoute)
 	if e != nil {
 		return
 	}
 	if r, _, x := usernodes.CheckNode(pnodeid); !r && !x {
-		e = ecode.ErrAuth
+		e = ecode.ErrPermission
 		return
 	}
-	//all check success,search database
-	parent := &model.Node{}
-	if e = d.mongo.Database("admin").Collection("node").FindOne(ctx, bson.M{"node_id": pnodeid}).Decode(parent); e != nil {
-		if e == mongo.ErrNoDocuments {
-			e = ecode.ErrReq
-		}
-		return
-	}
-	if len(parent.Children) == 0 {
-		return nil, nil
-	}
-	nodeids := make([][]uint32, 0, len(parent.Children))
-	for _, v := range parent.Children {
-		nodeids = append(nodeids, append(parent.NodeId, v))
+	//all check success,query database
+	filter := bson.M{"node_id": bson.M{"$size": len(pnodeid) + 1}}
+	for i, v := range pnodeid {
+		filter["node_id."+strconv.Itoa(i)] = v
 	}
 	var cursor *mongo.Cursor
-	cursor, e = d.mongo.Database("admin").Collection("node").Find(ctx, bson.M{"node_id": bson.M{"$in": nodeids}})
+	cursor, e = d.mongo.Database("admin").Collection("node").Find(ctx, filter)
 	if e != nil {
 		return
 	}
@@ -252,7 +291,11 @@ func (d *Dao) MongoListNode(ctx context.Context, userid primitive.ObjectID, pnod
 	e = cursor.Err()
 	return
 }
-func (d *Dao) MongoDeleteNode(ctx context.Context, userid primitive.ObjectID, nodeid []uint32) (e error) {
+func (d *Dao) MongoDeleteNode(ctx context.Context, operateUserid primitive.ObjectID, nodeid []uint32) (e error) {
+	noderoute := make([][]uint32, 0, len(nodeid))
+	for i := range nodeid {
+		noderoute = append(noderoute, nodeid[:i+1])
+	}
 	var s mongo.Session
 	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
@@ -272,60 +315,27 @@ func (d *Dao) MongoDeleteNode(ctx context.Context, userid primitive.ObjectID, no
 	}()
 	//check admin
 	var usernodes *model.UserNodes
-	noderoute := make([][]uint32, 0, len(nodeid))
-	for i := range nodeid {
-		noderoute = append(noderoute, nodeid[:i+1])
-	}
-	usernodes, e = d.MongoGetUserNodes(sctx, userid, noderoute)
+	usernodes, e = d.MongoGetUserNodes(sctx, operateUserid, noderoute)
 	if e != nil {
 		return
 	}
 	if _, _, x := usernodes.CheckNode(nodeid); !x {
-		e = ecode.ErrAuth
+		e = ecode.ErrPermission
 		return
 	}
 	//all check success,delete database
-	return d.delnode(sctx, [][]uint32{nodeid})
-}
-func (d *Dao) delnode(ctx context.Context, nodeids [][]uint32) error {
-	cursor, e := d.mongo.Database("admin").Collection("node").Find(ctx, bson.M{"node_id": bson.M{"$in": nodeids}})
-	if e != nil {
-		return e
+	delfilter := bson.M{}
+	for i, v := range nodeid {
+		delfilter["node_id."+strconv.Itoa(i)] = v
 	}
-	nodes := make([]*model.Node, 0, cursor.RemainingBatchLength())
-	for cursor.Next(ctx) {
-		tmp := &model.Node{}
-		if e = cursor.Decode(tmp); e != nil {
-			cursor.Close(ctx)
-			return e
-		}
-		nodes = append(nodes, tmp)
+	if _, e = d.mongo.Database("admin").Collection("node").DeleteMany(sctx, delfilter); e != nil {
+		return
 	}
-	cursor.Close(ctx)
-	if cursor.Err() != nil {
-		return cursor.Err()
+	if _, e = d.mongo.Database("admin").Collection("usernode").DeleteMany(sctx, delfilter); e != nil {
+		return
 	}
-	if len(nodes) == 0 {
-		return nil
-	}
-	if _, e = d.mongo.Database("admin").Collection("node").DeleteMany(ctx, bson.M{"node_id": bson.M{"$in": nodeids}}); e != nil {
-		return e
-	}
-	if _, e = d.mongo.Database("admin").Collection("usernode").DeleteMany(ctx, bson.M{"node_id": bson.M{"$in": nodeids}}); e != nil {
-		return e
-	}
-	childrennum := 0
-	for _, node := range nodes {
-		childrennum += len(node.Children)
-	}
-	newnodeids := make([][]uint32, 0, childrennum)
-	for _, node := range nodes {
-		for _, child := range node.Children {
-			newnodeids = append(newnodeids, append(node.NodeId, child))
-		}
-	}
-	if len(newnodeids) == 0 {
-		return nil
-	}
-	return d.delnode(ctx, newnodeids)
+	pnodeid := nodeid[:len(nodeid)-1]
+	updater := bson.M{"$pull": bson.M{"children": nodeid[len(nodeid)-1]}}
+	_, e = d.mongo.Database("admin").Collection("node").UpdateOne(sctx, bson.M{"node_id": pnodeid}, updater)
+	return
 }

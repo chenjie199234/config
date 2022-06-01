@@ -40,13 +40,41 @@ func (s *Service) Login(ctx context.Context, req *api.LoginReq) (*api.LoginResp,
 	tokenstr := publicmids.MakeToken(config.AC.TokenSecret, "corelib", *config.EC.DeployEnv, *config.EC.RunEnv, userid, uint64(start.Unix()), uint64(end.Unix()))
 	return &api.LoginResp{Token: tokenstr}, nil
 }
+func (s *Service) DelUser(ctx context.Context, req *api.DelUserReq) (*api.DelUserResp, error) {
+	if req.NodeId[0] != 0 {
+		return nil, ecode.ErrReq
+	}
+	delobj, e := primitive.ObjectIDFromHex(req.UserId)
+	if e != nil {
+		log.Error(ctx, "[DelUser] userid:", req.UserId, "format error:", e)
+		return nil, ecode.ErrReq
+	}
+	md := metadata.GetMetadata(ctx)
+	userid := md["Token-Data"]
+	obj, e := primitive.ObjectIDFromHex(userid)
+	if e != nil {
+		log.Error(ctx, "[DelUser] userid:", userid, "format error:", e)
+		return nil, ecode.ErrAuth
+	}
+	if e := s.adminDao.MongoDelUser(ctx, obj, delobj, req.NodeId); e != nil {
+		log.Error(ctx, "[DelUser] userid:", userid, "del userid:", req.UserId, "error:", e)
+		if _, ok := e.(*cerror.Error); ok {
+			return nil, e
+		}
+		return nil, ecode.ErrSystem
+	}
+	return &api.DelUserResp{}, nil
+}
 func (s *Service) AddNode(ctx context.Context, req *api.AddNodeReq) (*api.AddNodeResp, error) {
+	if req.PnodeId[0] != 0 {
+		return nil, ecode.ErrReq
+	}
 	md := metadata.GetMetadata(ctx)
 	userid := md["Token-Data"]
 	obj, e := primitive.ObjectIDFromHex(userid)
 	if e != nil {
 		log.Error(ctx, "[AddNode] userid:", userid, "format error:", e)
-		return nil, ecode.ErrReq
+		return nil, ecode.ErrAuth
 	}
 	if e = s.adminDao.MongoAddNode(ctx, obj, req.PnodeId, req.NodeName, req.NodeData); e != nil {
 		log.Error(ctx, "[AddNode] userid:", userid, "name:", req.NodeName, "data:", req.NodeData, "error:", e)
@@ -58,12 +86,15 @@ func (s *Service) AddNode(ctx context.Context, req *api.AddNodeReq) (*api.AddNod
 	return &api.AddNodeResp{}, nil
 }
 func (s *Service) UpdateNode(ctx context.Context, req *api.UpdateNodeReq) (*api.UpdateNodeResp, error) {
+	if req.NodeId[0] != 0 {
+		return nil, ecode.ErrReq
+	}
 	md := metadata.GetMetadata(ctx)
 	userid := md["Token-Data"]
 	obj, e := primitive.ObjectIDFromHex(userid)
 	if e != nil {
 		log.Error(ctx, "[UpdateNode] userid:", userid, "format error:", e)
-		return nil, ecode.ErrReq
+		return nil, ecode.ErrAuth
 	}
 	if e = s.adminDao.MongoUpdateNode(ctx, obj, req.NodeId, req.NodeName, req.NodeData); e != nil {
 		log.Error(ctx, "[UpdateNode] userid:", userid, "nodeid:", req.NodeId, "error:", e)
@@ -75,12 +106,15 @@ func (s *Service) UpdateNode(ctx context.Context, req *api.UpdateNodeReq) (*api.
 	return &api.UpdateNodeResp{}, nil
 }
 func (s *Service) DelNode(ctx context.Context, req *api.DelNodeReq) (*api.DelNodeResp, error) {
+	if req.NodeId[0] != 0 {
+		return nil, ecode.ErrReq
+	}
 	md := metadata.GetMetadata(ctx)
 	userid := md["Token-Data"]
 	obj, e := primitive.ObjectIDFromHex(userid)
 	if e != nil {
 		log.Error(ctx, "[DelNode] userid:", userid, "format error:", e)
-		return nil, ecode.ErrReq
+		return nil, ecode.ErrAuth
 	}
 	if e = s.adminDao.MongoDeleteNode(ctx, obj, req.NodeId); e != nil {
 		log.Error(ctx, "[DelNode] userid:", userid, "nodeid:", req.NodeId, "error:", e)
@@ -92,12 +126,15 @@ func (s *Service) DelNode(ctx context.Context, req *api.DelNodeReq) (*api.DelNod
 	return &api.DelNodeResp{}, nil
 }
 func (s *Service) ListNode(ctx context.Context, req *api.ListNodeReq) (*api.ListNodeResp, error) {
+	if req.PnodeId[0] != 0 {
+		return nil, ecode.ErrReq
+	}
 	md := metadata.GetMetadata(ctx)
 	userid := md["Token-Data"]
 	obj, e := primitive.ObjectIDFromHex(userid)
 	if e != nil {
 		log.Error(ctx, "[ListNode] userid:", userid, "format error:", e)
-		return nil, ecode.ErrReq
+		return nil, ecode.ErrAuth
 	}
 	nodes, e := s.adminDao.MongoListNode(ctx, obj, req.PnodeId)
 	if e != nil {
@@ -118,6 +155,30 @@ func (s *Service) ListNode(ctx context.Context, req *api.ListNodeReq) (*api.List
 		})
 	}
 	return resp, nil
+}
+func (s *Service) Check(ctx context.Context, req *api.CheckReq) (*api.CheckResp, error) {
+	if req.NodeId[0] != 0 {
+		return nil, ecode.ErrReq
+	}
+	obj, e := primitive.ObjectIDFromHex(req.UserId)
+	if e != nil {
+		log.Error(ctx, "[Check] userid:", req.UserId, "format error:", e)
+		return nil, ecode.ErrReq
+	}
+	noderoute := make([][]uint32, 0, len(req.NodeId))
+	for i := range req.NodeId {
+		noderoute = append(noderoute, req.NodeId[:i+1])
+	}
+	usernodes, e := s.adminDao.MongoGetUserNodes(ctx, obj, noderoute)
+	if e != nil {
+		log.Error(ctx, "[Check] userid:", req.UserId, "nodeid:", req.NodeId, "error:", e)
+		if _, ok := e.(*cerror.Error); ok {
+			return nil, e
+		}
+		return nil, ecode.ErrSystem
+	}
+	canread, canwrite, admin := usernodes.CheckNode(req.NodeId)
+	return &api.CheckResp{Canread: canread, Canwrite: canwrite, Admin: admin}, nil
 }
 
 //Stop -

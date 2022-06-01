@@ -15,17 +15,21 @@ import (
 )
 
 var _CGrpcPathAdminLogin = "/config.admin/login"
+var _CGrpcPathAdminDelUser = "/config.admin/del_user"
 var _CGrpcPathAdminAddNode = "/config.admin/add_node"
 var _CGrpcPathAdminUpdateNode = "/config.admin/update_node"
 var _CGrpcPathAdminDelNode = "/config.admin/del_node"
 var _CGrpcPathAdminListNode = "/config.admin/list_node"
+var _CGrpcPathAdminCheck = "/config.admin/check"
 
 type AdminCGrpcClient interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
+	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
 	DelNode(context.Context, *DelNodeReq) (*DelNodeResp, error)
 	ListNode(context.Context, *ListNodeReq) (*ListNodeResp, error)
+	Check(context.Context, *CheckReq) (*CheckResp, error)
 }
 
 type adminCGrpcClient struct {
@@ -42,6 +46,16 @@ func (c *adminCGrpcClient) Login(ctx context.Context, req *LoginReq) (*LoginResp
 	}
 	resp := new(LoginResp)
 	if e := c.cc.Call(ctx, _CGrpcPathAdminLogin, req, resp, metadata.GetMetadata(ctx)); e != nil {
+		return nil, e
+	}
+	return resp, nil
+}
+func (c *adminCGrpcClient) DelUser(ctx context.Context, req *DelUserReq) (*DelUserResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	resp := new(DelUserResp)
+	if e := c.cc.Call(ctx, _CGrpcPathAdminDelUser, req, resp, metadata.GetMetadata(ctx)); e != nil {
 		return nil, e
 	}
 	return resp, nil
@@ -86,13 +100,25 @@ func (c *adminCGrpcClient) ListNode(ctx context.Context, req *ListNodeReq) (*Lis
 	}
 	return resp, nil
 }
+func (c *adminCGrpcClient) Check(ctx context.Context, req *CheckReq) (*CheckResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	resp := new(CheckResp)
+	if e := c.cc.Call(ctx, _CGrpcPathAdminCheck, req, resp, metadata.GetMetadata(ctx)); e != nil {
+		return nil, e
+	}
+	return resp, nil
+}
 
 type AdminCGrpcServer interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
+	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
 	DelNode(context.Context, *DelNodeReq) (*DelNodeResp, error)
 	ListNode(context.Context, *ListNodeReq) (*ListNodeResp, error)
+	Check(context.Context, *CheckReq) (*CheckResp, error)
 }
 
 func _Admin_Login_CGrpcHandler(handler func(context.Context, *LoginReq) (*LoginResp, error)) cgrpc.OutsideHandler {
@@ -109,6 +135,29 @@ func _Admin_Login_CGrpcHandler(handler func(context.Context, *LoginReq) (*LoginR
 		}
 		if resp == nil {
 			resp = new(LoginResp)
+		}
+		ctx.Write(resp)
+	}
+}
+func _Admin_DelUser_CGrpcHandler(handler func(context.Context, *DelUserReq) (*DelUserResp, error)) cgrpc.OutsideHandler {
+	return func(ctx *cgrpc.Context) {
+		req := new(DelUserReq)
+		if ctx.DecodeReq(req) != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.admin/del_user]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(DelUserResp)
 		}
 		ctx.Write(resp)
 	}
@@ -205,12 +254,37 @@ func _Admin_ListNode_CGrpcHandler(handler func(context.Context, *ListNodeReq) (*
 		ctx.Write(resp)
 	}
 }
+func _Admin_Check_CGrpcHandler(handler func(context.Context, *CheckReq) (*CheckResp, error)) cgrpc.OutsideHandler {
+	return func(ctx *cgrpc.Context) {
+		req := new(CheckReq)
+		if ctx.DecodeReq(req) != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.admin/check]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(CheckResp)
+		}
+		ctx.Write(resp)
+	}
+}
 func RegisterAdminCGrpcServer(engine *cgrpc.CGrpcServer, svc AdminCGrpcServer, allmids map[string]cgrpc.OutsideHandler) {
 	//avoid lint
 	_ = allmids
 	engine.RegisterHandler("config.admin", "login", _Admin_Login_CGrpcHandler(svc.Login))
+	engine.RegisterHandler("config.admin", "del_user", _Admin_DelUser_CGrpcHandler(svc.DelUser))
 	engine.RegisterHandler("config.admin", "add_node", _Admin_AddNode_CGrpcHandler(svc.AddNode))
 	engine.RegisterHandler("config.admin", "update_node", _Admin_UpdateNode_CGrpcHandler(svc.UpdateNode))
 	engine.RegisterHandler("config.admin", "del_node", _Admin_DelNode_CGrpcHandler(svc.DelNode))
 	engine.RegisterHandler("config.admin", "list_node", _Admin_ListNode_CGrpcHandler(svc.ListNode))
+	engine.RegisterHandler("config.admin", "check", _Admin_Check_CGrpcHandler(svc.Check))
 }

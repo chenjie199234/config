@@ -20,6 +20,7 @@ import (
 )
 
 var _WebPathAdminLogin = "/config.admin/login"
+var _WebPathAdminDelUser = "/config.admin/del_user"
 var _WebPathAdminAddNode = "/config.admin/add_node"
 var _WebPathAdminUpdateNode = "/config.admin/update_node"
 var _WebPathAdminDelNode = "/config.admin/del_node"
@@ -27,6 +28,7 @@ var _WebPathAdminListNode = "/config.admin/list_node"
 
 type AdminWebClient interface {
 	Login(context.Context, *LoginReq, http.Header) (*LoginResp, error)
+	DelUser(context.Context, *DelUserReq, http.Header) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq, http.Header) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq, http.Header) (*UpdateNodeResp, error)
 	DelNode(context.Context, *DelNodeReq, http.Header) (*DelNodeResp, error)
@@ -56,6 +58,29 @@ func (c *adminWebClient) Login(ctx context.Context, req *LoginReq, header http.H
 		return nil, e
 	}
 	resp := new(LoginResp)
+	if len(data) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(data, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
+func (c *adminWebClient) DelUser(ctx context.Context, req *DelUserReq, header http.Header) (*DelUserResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	if header == nil {
+		header = make(http.Header)
+	}
+	header.Set("Content-Type", "application/x-protobuf")
+	header.Set("Accept", "application/x-protobuf")
+	reqd, _ := proto.Marshal(req)
+	data, e := c.cc.Post(ctx, _WebPathAdminDelUser, "", header, metadata.GetMetadata(ctx), reqd)
+	if e != nil {
+		return nil, e
+	}
+	resp := new(DelUserResp)
 	if len(data) == 0 {
 		return resp, nil
 	}
@@ -159,6 +184,7 @@ func (c *adminWebClient) ListNode(ctx context.Context, req *ListNodeReq, header 
 
 type AdminWebServer interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
+	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
 	DelNode(context.Context, *DelNodeReq) (*DelNodeResp, error)
@@ -218,6 +244,100 @@ func _Admin_Login_WebHandler(handler func(context.Context, *LoginReq) (*LoginRes
 		}
 		if resp == nil {
 			resp = new(LoginResp)
+		}
+		if strings.HasPrefix(ctx.GetAcceptType(), "application/x-protobuf") {
+			respd, _ := proto.Marshal(resp)
+			ctx.Write("application/x-protobuf", respd)
+		} else {
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			ctx.Write("application/json", respd)
+		}
+	}
+}
+func _Admin_DelUser_WebHandler(handler func(context.Context, *DelUserReq) (*DelUserResp, error)) web.OutsideHandler {
+	return func(ctx *web.Context) {
+		req := new(DelUserReq)
+		if strings.HasPrefix(ctx.GetContentType(), "application/json") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else if strings.HasPrefix(ctx.GetContentType(), "application/x-protobuf") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				if e := proto.Unmarshal(data, req); e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else {
+			if e := ctx.ParseForm(); e != nil {
+				ctx.Abort(error1.ErrReq)
+				return
+			}
+			data := pool.GetBuffer()
+			defer pool.PutBuffer(data)
+			data.AppendByte('{')
+			data.AppendString("\"user_id\":")
+			if form := ctx.GetForm("user_id"); len(form) == 0 {
+				data.AppendString("\"\"")
+			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
+				data.AppendByte('"')
+				data.AppendString(form)
+				data.AppendByte('"')
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte(',')
+			data.AppendString("\"node_id\":")
+			if forms := ctx.GetForms("node_id"); len(forms) == 0 {
+				data.AppendString("null")
+			} else {
+				data.AppendByte('[')
+				for _, form := range forms {
+					if len(form) == 0 {
+						data.AppendString("0")
+					} else {
+						data.AppendString(form)
+					}
+					data.AppendByte(',')
+				}
+				data.Bytes()[data.Len()-1] = ']'
+			}
+			data.AppendByte('}')
+			if data.Len() > 2 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.admin/del_user]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		ee := error1.ConvertStdError(e)
+		if ee != nil {
+			ctx.Abort(ee)
+			return
+		}
+		if resp == nil {
+			resp = new(DelUserResp)
 		}
 		if strings.HasPrefix(ctx.GetAcceptType(), "application/x-protobuf") {
 			respd, _ := proto.Marshal(resp)
@@ -608,8 +728,69 @@ func RegisterAdminWebServer(engine *web.WebServer, svc AdminWebServer, allmids m
 	//avoid lint
 	_ = allmids
 	engine.Post(_WebPathAdminLogin, _Admin_Login_WebHandler(svc.Login))
-	engine.Post(_WebPathAdminAddNode, _Admin_AddNode_WebHandler(svc.AddNode))
-	engine.Post(_WebPathAdminUpdateNode, _Admin_UpdateNode_WebHandler(svc.UpdateNode))
-	engine.Post(_WebPathAdminDelNode, _Admin_DelNode_WebHandler(svc.DelNode))
-	engine.Post(_WebPathAdminListNode, _Admin_ListNode_WebHandler(svc.ListNode))
+	{
+		requiredMids := []string{"token"}
+		mids := make([]web.OutsideHandler, 0, 2)
+		for _, v := range requiredMids {
+			if mid, ok := allmids[v]; ok {
+				mids = append(mids, mid)
+			} else {
+				panic("missing midware:" + v)
+			}
+		}
+		mids = append(mids, _Admin_DelUser_WebHandler(svc.DelUser))
+		engine.Post(_WebPathAdminDelUser, mids...)
+	}
+	{
+		requiredMids := []string{"token"}
+		mids := make([]web.OutsideHandler, 0, 2)
+		for _, v := range requiredMids {
+			if mid, ok := allmids[v]; ok {
+				mids = append(mids, mid)
+			} else {
+				panic("missing midware:" + v)
+			}
+		}
+		mids = append(mids, _Admin_AddNode_WebHandler(svc.AddNode))
+		engine.Post(_WebPathAdminAddNode, mids...)
+	}
+	{
+		requiredMids := []string{"token"}
+		mids := make([]web.OutsideHandler, 0, 2)
+		for _, v := range requiredMids {
+			if mid, ok := allmids[v]; ok {
+				mids = append(mids, mid)
+			} else {
+				panic("missing midware:" + v)
+			}
+		}
+		mids = append(mids, _Admin_UpdateNode_WebHandler(svc.UpdateNode))
+		engine.Post(_WebPathAdminUpdateNode, mids...)
+	}
+	{
+		requiredMids := []string{"token"}
+		mids := make([]web.OutsideHandler, 0, 2)
+		for _, v := range requiredMids {
+			if mid, ok := allmids[v]; ok {
+				mids = append(mids, mid)
+			} else {
+				panic("missing midware:" + v)
+			}
+		}
+		mids = append(mids, _Admin_DelNode_WebHandler(svc.DelNode))
+		engine.Post(_WebPathAdminDelNode, mids...)
+	}
+	{
+		requiredMids := []string{"token"}
+		mids := make([]web.OutsideHandler, 0, 2)
+		for _, v := range requiredMids {
+			if mid, ok := allmids[v]; ok {
+				mids = append(mids, mid)
+			} else {
+				panic("missing midware:" + v)
+			}
+		}
+		mids = append(mids, _Admin_ListNode_WebHandler(svc.ListNode))
+		engine.Post(_WebPathAdminListNode, mids...)
+	}
 }

@@ -16,17 +16,21 @@ import (
 )
 
 var _CrpcPathAdminLogin = "/config.admin/login"
+var _CrpcPathAdminDelUser = "/config.admin/del_user"
 var _CrpcPathAdminAddNode = "/config.admin/add_node"
 var _CrpcPathAdminUpdateNode = "/config.admin/update_node"
 var _CrpcPathAdminDelNode = "/config.admin/del_node"
 var _CrpcPathAdminListNode = "/config.admin/list_node"
+var _CrpcPathAdminCheck = "/config.admin/check"
 
 type AdminCrpcClient interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
+	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
 	DelNode(context.Context, *DelNodeReq) (*DelNodeResp, error)
 	ListNode(context.Context, *ListNodeReq) (*ListNodeResp, error)
+	Check(context.Context, *CheckReq) (*CheckResp, error)
 }
 
 type adminCrpcClient struct {
@@ -47,6 +51,24 @@ func (c *adminCrpcClient) Login(ctx context.Context, req *LoginReq) (*LoginResp,
 		return nil, e
 	}
 	resp := new(LoginResp)
+	if len(respd) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(respd, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
+func (c *adminCrpcClient) DelUser(ctx context.Context, req *DelUserReq) (*DelUserResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	reqd, _ := proto.Marshal(req)
+	respd, e := c.cc.Call(ctx, _CrpcPathAdminDelUser, reqd, metadata.GetMetadata(ctx))
+	if e != nil {
+		return nil, e
+	}
+	resp := new(DelUserResp)
 	if len(respd) == 0 {
 		return resp, nil
 	}
@@ -127,13 +149,33 @@ func (c *adminCrpcClient) ListNode(ctx context.Context, req *ListNodeReq) (*List
 	}
 	return resp, nil
 }
+func (c *adminCrpcClient) Check(ctx context.Context, req *CheckReq) (*CheckResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	reqd, _ := proto.Marshal(req)
+	respd, e := c.cc.Call(ctx, _CrpcPathAdminCheck, reqd, metadata.GetMetadata(ctx))
+	if e != nil {
+		return nil, e
+	}
+	resp := new(CheckResp)
+	if len(respd) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(respd, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
 
 type AdminCrpcServer interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
+	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
 	DelNode(context.Context, *DelNodeReq) (*DelNodeResp, error)
 	ListNode(context.Context, *ListNodeReq) (*ListNodeResp, error)
+	Check(context.Context, *CheckReq) (*CheckResp, error)
 }
 
 func _Admin_Login_CrpcHandler(handler func(context.Context, *LoginReq) (*LoginResp, error)) crpc.OutsideHandler {
@@ -150,6 +192,30 @@ func _Admin_Login_CrpcHandler(handler func(context.Context, *LoginReq) (*LoginRe
 		}
 		if resp == nil {
 			resp = new(LoginResp)
+		}
+		respd, _ := proto.Marshal(resp)
+		ctx.Write(respd)
+	}
+}
+func _Admin_DelUser_CrpcHandler(handler func(context.Context, *DelUserReq) (*DelUserResp, error)) crpc.OutsideHandler {
+	return func(ctx *crpc.Context) {
+		req := new(DelUserReq)
+		if e := proto.Unmarshal(ctx.GetBody(), req); e != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.admin/del_user]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(DelUserResp)
 		}
 		respd, _ := proto.Marshal(resp)
 		ctx.Write(respd)
@@ -251,12 +317,38 @@ func _Admin_ListNode_CrpcHandler(handler func(context.Context, *ListNodeReq) (*L
 		ctx.Write(respd)
 	}
 }
+func _Admin_Check_CrpcHandler(handler func(context.Context, *CheckReq) (*CheckResp, error)) crpc.OutsideHandler {
+	return func(ctx *crpc.Context) {
+		req := new(CheckReq)
+		if e := proto.Unmarshal(ctx.GetBody(), req); e != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.admin/check]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(CheckResp)
+		}
+		respd, _ := proto.Marshal(resp)
+		ctx.Write(respd)
+	}
+}
 func RegisterAdminCrpcServer(engine *crpc.CrpcServer, svc AdminCrpcServer, allmids map[string]crpc.OutsideHandler) {
 	//avoid lint
 	_ = allmids
 	engine.RegisterHandler(_CrpcPathAdminLogin, _Admin_Login_CrpcHandler(svc.Login))
+	engine.RegisterHandler(_CrpcPathAdminDelUser, _Admin_DelUser_CrpcHandler(svc.DelUser))
 	engine.RegisterHandler(_CrpcPathAdminAddNode, _Admin_AddNode_CrpcHandler(svc.AddNode))
 	engine.RegisterHandler(_CrpcPathAdminUpdateNode, _Admin_UpdateNode_CrpcHandler(svc.UpdateNode))
 	engine.RegisterHandler(_CrpcPathAdminDelNode, _Admin_DelNode_CrpcHandler(svc.DelNode))
 	engine.RegisterHandler(_CrpcPathAdminListNode, _Admin_ListNode_CrpcHandler(svc.ListNode))
+	engine.RegisterHandler(_CrpcPathAdminCheck, _Admin_Check_CrpcHandler(svc.Check))
 }

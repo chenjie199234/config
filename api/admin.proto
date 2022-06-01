@@ -26,20 +26,33 @@ service admin{
 		option (pbex.method)="post";
 	}
 
+	rpc del_user(del_user_req)returns(del_user_resp){
+		option (pbex.method)="post";
+		option (pbex.web_midwares)="token";
+	}
+
 	rpc add_node(add_node_req)returns(add_node_resp){
 		option (pbex.method)="post";
+		option (pbex.web_midwares)="token";
 	}
 
 	rpc update_node(update_node_req)returns(update_node_resp){
 		option (pbex.method)="post";
+		option (pbex.web_midwares)="token";
 	}
 
 	rpc del_node(del_node_req)returns(del_node_resp){
 		option (pbex.method)="post";
+		option (pbex.web_midwares)="token";
 	}
 
 	rpc list_node(list_node_req)returns(list_node_resp){
 		option (pbex.method)="post";
+		option (pbex.web_midwares)="token";
+	}
+
+	rpc check(check_req)returns(check_resp){
+
 	}
 }
 //req can be set with pbex extentions
@@ -55,6 +68,12 @@ message login_req {
 }
 message login_resp {
 	string token=1;
+}
+message del_user_req {
+	string user_id=1[(pbex.string_bytes_len_not_eq)=0];
+	repeated uint32 node_id=2[(pbex.map_repeated_len_not_eq)=0];
+}
+message del_user_resp {
 }
 message add_node_req {
 	repeated uint32 pnode_id=1[(pbex.map_repeated_len_not_eq)=0];
@@ -86,4 +105,13 @@ message node_info {
 	repeated uint32 node_id=1;
 	string node_name=2;
 	string node_data=3;
+}
+message check_req {
+	string user_id=1[(pbex.string_bytes_len_not_eq)=0];
+	repeated uint32 node_id=2[(pbex.map_repeated_len_gt)=1];
+}
+message check_resp {
+	bool canread=1;
+	bool canwrite=2;
+	bool admin=3;
 }

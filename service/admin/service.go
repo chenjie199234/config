@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"time"
 
 	"github.com/chenjie199234/config/api"
 	"github.com/chenjie199234/config/config"
@@ -11,6 +12,7 @@ import (
 	cerror "github.com/chenjie199234/Corelib/error"
 	"github.com/chenjie199234/Corelib/log"
 	"github.com/chenjie199234/Corelib/metadata"
+	publicmids "github.com/chenjie199234/Corelib/mids"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	//"github.com/chenjie199234/Corelib/cgrpc"
 	//"github.com/chenjie199234/Corelib/crpc"
@@ -31,6 +33,12 @@ func Start() *Service {
 }
 
 func (s *Service) Login(ctx context.Context, req *api.LoginReq) (*api.LoginResp, error) {
+	var userid string
+	//TODO get userid
+	start := time.Now()
+	end := start.Add(config.AC.TokenExpire.StdDuration())
+	tokenstr := publicmids.MakeToken(config.AC.TokenSecret, "corelib", *config.EC.DeployEnv, *config.EC.RunEnv, userid, uint64(start.Unix()), uint64(end.Unix()))
+	return &api.LoginResp{Token: tokenstr}, nil
 }
 func (s *Service) AddNode(ctx context.Context, req *api.AddNodeReq) (*api.AddNodeResp, error) {
 	md := metadata.GetMetadata(ctx)

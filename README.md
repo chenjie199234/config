@@ -1,7 +1,7 @@
 # config
 ![image](config.jpg)
 
-**如需在生产环境使用,请修改model/config.go中的servicecipher**
+**如需在生产环境使用,请修改util/util.go中的servicecipher**
 
 **如需在生产环境使用,建议对编译后的二进制文件使用upx等软件加壳压缩**
 ```
@@ -41,4 +41,60 @@ REMOTE_CONFIG_MONGO_URL                 当CONFIG_TYPE为1时,配置中心mongod
 ```
 AppConfig.json该文件配置了该服务需要使用的业务配置,可热更新
 SourceConfig.json该文件配置了该服务需要使用的资源配置,不热更新
+```
+
+## DB
+### Mongo
+#### config
+```
+database: config_{groupname}
+collection: {appname}
+{
+	"_id":ObjectId("xxxx"),
+	"index":0,//always be 0
+	"cipher":"",
+	"cur_index":0,
+	"max_index":0,//auto increment(every time insert a new config log)
+	"cur_version":0,//auto increment(every time insert or rollback)
+	"cur_app_config":"",
+	"cur_source_config":"",
+}//summary
+{
+	"_id":ObjectId("xxx"),
+	"index":1,//always > 0
+	"app_config":"",
+	"source_config":""
+}//log
+//index field add unique index
+```
+#### admin
+```
+database: admin
+collection: node
+{
+	"_id":ObjectId("xxx"),//meaningless
+	"node_id":[0,1],
+	"node_name":"",
+	"node_data":"",
+	"cur_node_index":0,//auto increment,this is for child's node_id
+	"children":[1,2],//self is [0,1],has two children [0,1,1] and [0,1,2]
+}
+//node_id field add unique index
+
+collection: user
+{
+	"_id":ObjectId("xxx")//userid
+}
+
+collection: usernode
+{
+	"_id":ObjectId("xxx"),//meaningless
+	"user_id":ObjectId("xxx"),
+	"node_id":[0,1],
+	"r":1,//can read
+	"w":1,//can write
+	"x":1,//admin on this node
+}
+//user_id+node_id field add unique index
+//node_id field add index
 ```

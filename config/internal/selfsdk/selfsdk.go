@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/chenjie199234/config/model"
+	"github.com/chenjie199234/config/util"
 
 	"github.com/chenjie199234/Corelib/log"
 	"github.com/chenjie199234/Corelib/util/common"
@@ -50,8 +51,8 @@ func NewDirectSdk(selfgroup string, url string) error {
 		s.CurSourceConfig = "{}"
 	}
 	if s.Cipher != "" {
-		s.CurAppConfig = model.Decrypt(s.Cipher, s.CurAppConfig)
-		s.CurSourceConfig = model.Decrypt(s.Cipher, s.CurSourceConfig)
+		s.CurAppConfig = util.Decrypt(s.Cipher, s.CurAppConfig)
+		s.CurSourceConfig = util.Decrypt(s.Cipher, s.CurSourceConfig)
 	}
 	if e = updateApp(common.Str2byte(s.CurAppConfig)); e != nil {
 		return e
@@ -83,8 +84,8 @@ func NewDirectSdk(selfgroup string, url string) error {
 				}
 				s = tmps
 				if s.Cipher != "" {
-					s.CurAppConfig = model.Decrypt(s.Cipher, s.CurAppConfig)
-					s.CurSourceConfig = model.Decrypt(s.Cipher, s.CurSourceConfig)
+					s.CurAppConfig = util.Decrypt(s.Cipher, s.CurAppConfig)
+					s.CurSourceConfig = util.Decrypt(s.Cipher, s.CurSourceConfig)
 				}
 				if e = updateApp(common.Str2byte(s.CurAppConfig)); e != nil {
 					log.Error(nil, "[config.selfsdk.watch] refresh after reconnect error:", e)
@@ -131,8 +132,8 @@ func NewDirectSdk(selfgroup string, url string) error {
 				}
 				s = tmps
 				if s.Cipher != "" {
-					s.CurAppConfig = model.Decrypt(s.Cipher, s.CurAppConfig)
-					s.CurSourceConfig = model.Decrypt(s.Cipher, s.CurSourceConfig)
+					s.CurAppConfig = util.Decrypt(s.Cipher, s.CurAppConfig)
+					s.CurSourceConfig = util.Decrypt(s.Cipher, s.CurSourceConfig)
 				}
 				if e = updateApp(common.Str2byte(s.CurAppConfig)); e != nil {
 					log.Error(nil, "[config.selfsdk.watch] update appconfig error:", e)
@@ -172,6 +173,11 @@ var defaultAppConfig = `{
 		"Method":["GET","GRPC","CRPC"],
 		"MaxPerSec":10
 	}],
+	"web_path_rewrite":{
+		"GET":{
+			"/example/origin/url":"/example/new/url"
+		}
+	},
 	"access_keys":{
 		"default":"default_sec_key",
 		"/config.status/ping":"specific_sec_key"
@@ -314,8 +320,16 @@ func newMongo(url string, groupname string) (db *mongo.Client, e error) {
 	if _, e = col.Indexes().CreateOne(sctx, index); e != nil {
 		return
 	}
-	appconfig := defaultAppConfig
-	sourceconfig := fmt.Sprintf(defaultSourceConfig, url)
+	buf := bytes.NewBuffer(nil)
+	if e = json.Compact(buf, common.Str2byte(defaultAppConfig)); e != nil {
+		return
+	}
+	appconfig := buf.String()
+	buf.Reset()
+	if e = json.Compact(buf, common.Str2byte(fmt.Sprintf(defaultSourceConfig, url))); e != nil {
+		return
+	}
+	sourceconfig := buf.String()
 	if _, e = col.InsertOne(sctx, bson.M{
 		"index":             0,
 		"cipher":            "",

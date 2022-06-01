@@ -1,9 +1,9 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"strings"
 	"sync"
 
 	"github.com/chenjie199234/config/api"
@@ -11,6 +11,7 @@ import (
 	configdao "github.com/chenjie199234/config/dao/config"
 	"github.com/chenjie199234/config/ecode"
 	"github.com/chenjie199234/config/model"
+	"github.com/chenjie199234/config/util"
 
 	cerror "github.com/chenjie199234/Corelib/error"
 	"github.com/chenjie199234/Corelib/log"
@@ -41,7 +42,7 @@ func Start() *Service {
 		apps:       make(map[string]map[string]*app),
 		status:     true,
 	}
-	if e := s.configDao.MongoWatchConfig(s.refresh, s.update, s.delgroup, s.delapp, s.delconfig, model.Decrypt); e != nil {
+	if e := s.configDao.MongoWatchConfig(s.refresh, s.update, s.delgroup, s.delapp, s.delconfig, util.Decrypt); e != nil {
 		panic("[Config.Start] watch error: " + e.Error())
 	}
 	return s
@@ -296,7 +297,7 @@ func (s *Service) Create(ctx context.Context, req *api.CreateReq) (*api.CreateRe
 		log.Error(ctx, "[Create] group:", req.Groupname, "app:", req.Appname, "error:", ecode.ErrCipherLength)
 		return nil, ecode.ErrCipherLength
 	}
-	if e := s.configDao.MongoCreate(ctx, req.Groupname, req.Appname, req.Cipher, model.Encrypt); e != nil {
+	if e := s.configDao.MongoCreate(ctx, req.Groupname, req.Appname, req.Cipher, util.Encrypt); e != nil {
 		log.Error(ctx, "[Create] group:", req.Groupname, "app:", req.Appname, "error:", e)
 		if e != ecode.ErrAppAlreadyExist {
 			e = ecode.ErrSystem
@@ -316,7 +317,7 @@ func (s *Service) Updatecipher(ctx context.Context, req *api.UpdatecipherReq) (*
 	if req.Old == req.New {
 		return &api.UpdatecipherResp{}, nil
 	}
-	if e := s.configDao.MongoUpdateCipher(ctx, req.Groupname, req.Appname, req.Old, req.New, model.Decrypt, model.Encrypt); e != nil {
+	if e := s.configDao.MongoUpdateCipher(ctx, req.Groupname, req.Appname, req.Old, req.New, util.Decrypt, util.Encrypt); e != nil {
 		log.Error(ctx, "[Updatechiper] group:", req.Groupname, "app:", req.Appname, "error:", e)
 		if e != ecode.ErrAppNotExist && e != ecode.ErrWrongCipher {
 			e = ecode.ErrSystem
@@ -329,7 +330,7 @@ func (s *Service) Updatecipher(ctx context.Context, req *api.UpdatecipherReq) (*
 
 //get one specific app's config
 func (s *Service) Get(ctx context.Context, req *api.GetReq) (*api.GetResp, error) {
-	summary, config, e := s.configDao.MongoGetConfig(ctx, req.Groupname, req.Appname, req.Index, model.Decrypt)
+	summary, config, e := s.configDao.MongoGetConfig(ctx, req.Groupname, req.Appname, req.Index, util.Decrypt)
 	if e != nil {
 		log.Error(ctx, "[Get] group:", req.Groupname, "app:", req.Appname, "error:", e)
 		return nil, ecode.ErrSystem
@@ -354,19 +355,33 @@ func (s *Service) Get(ctx context.Context, req *api.GetReq) (*api.GetResp, error
 
 //set one specific app's config
 func (s *Service) Set(ctx context.Context, req *api.SetReq) (*api.SetResp, error) {
-	req.AppConfig = strings.TrimSpace(req.AppConfig)
 	if req.AppConfig == "" {
 		req.AppConfig = "{}"
-	} else if len(req.AppConfig) < 2 || req.AppConfig[0] != '{' || req.AppConfig[len(req.AppConfig)-1] != '}' || !json.Valid(common.Str2byte(req.AppConfig)) {
-		return nil, ecode.ErrConfigFormat
+	} else {
+		buf := bytes.NewBuffer(nil)
+		e := json.Compact(buf, common.Str2byte(req.AppConfig))
+		if e != nil {
+			return nil, ecode.ErrConfigFormat
+		}
+		if buf.Bytes()[0] != '{' || buf.Bytes()[buf.Len()-1] != '}' {
+			return nil, ecode.ErrConfigFormat
+		}
+		req.AppConfig = buf.String()
 	}
-	req.SourceConfig = strings.TrimSpace(req.SourceConfig)
 	if req.SourceConfig == "" {
 		req.SourceConfig = "{}"
-	} else if len(req.SourceConfig) < 2 || req.SourceConfig[0] != '{' || req.SourceConfig[len(req.SourceConfig)-1] != '}' || !json.Valid(common.Str2byte(req.SourceConfig)) {
-		return nil, ecode.ErrConfigFormat
+	} else {
+		buf := bytes.NewBuffer(nil)
+		e := json.Compact(buf, common.Str2byte(req.SourceConfig))
+		if e != nil {
+			return nil, ecode.ErrConfigFormat
+		}
+		if buf.Bytes()[0] != '{' || buf.Bytes()[buf.Len()-1] != '}' {
+			return nil, ecode.ErrConfigFormat
+		}
+		req.SourceConfig = buf.String()
 	}
-	index, e := s.configDao.MongoSetConfig(ctx, req.Groupname, req.Appname, req.AppConfig, req.SourceConfig, model.Encrypt)
+	index, e := s.configDao.MongoSetConfig(ctx, req.Groupname, req.Appname, req.AppConfig, req.SourceConfig, util.Encrypt)
 	if e != nil {
 		log.Error(ctx, "[Set] group:", req.Groupname, "app:", req.Appname, "error:", e)
 		if e != ecode.ErrAppNotExist {

@@ -7,23 +7,12 @@
 package api
 
 //return empty means pass
-func (m *InviteUserReq) Validate() (errstr string) {
+func (m *UpdateUserPermissionReq) Validate() (errstr string) {
 	if len(m.GetUserId()) == 0 {
-		return "field: user_id in object: invite_user_req check value str len not eq failed"
+		return "field: user_id in object: update_user_permission_req check value str len not eq failed"
 	}
 	if len(m.GetNodeId()) <= 1 {
-		return "field: node_id in object: invite_user_req check len gt failed"
-	}
-	return ""
-}
-
-//return empty means pass
-func (m *DelUserReq) Validate() (errstr string) {
-	if len(m.GetUserId()) == 0 {
-		return "field: user_id in object: del_user_req check value str len not eq failed"
-	}
-	if len(m.GetNodeId()) == 0 {
-		return "field: node_id in object: del_user_req check len not eq failed"
+		return "field: node_id in object: update_user_permission_req check len gt failed"
 	}
 	return ""
 }

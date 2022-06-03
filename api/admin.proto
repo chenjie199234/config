@@ -31,12 +31,7 @@ service admin{
 		option (pbex.web_midwares)="token";
 	}
 	
-	rpc invite_user(invite_user_req)returns(invite_user_resp){
-		option (pbex.method)="post";
-		option (pbex.web_midwares)="token";
-	}
-
-	rpc del_user(del_user_req)returns(del_user_resp){
+	rpc update_user_permission(update_user_permission_req)returns(update_user_permission_resp){
 		option (pbex.method)="post";
 		option (pbex.web_midwares)="token";
 	}
@@ -89,24 +84,21 @@ message search_user_req {
 message search_user_resp {
 
 }
-message invite_user_req {
+message update_user_permission_req {
 	string user_id=1[(pbex.string_bytes_len_not_eq)=0];
 	//first element must be 0
 	repeated uint32 node_id=2[(pbex.map_repeated_len_gt)=1];
-	bool canwrite=3;
+	//if this is true,canread and canwrite will be ignore
 	//if need to give this user admin permission
 	//the operater must be admin in this node's parent's path
-	bool admin=4;
+	bool admin=3;
+	//if admin is false and this is false too,means delete this user from this node
+	bool canread=4;
+	//if admin is false and this is true,then the canread must be true too
+	bool canwrite=5;
 }
-message invite_user_resp {
+message update_user_permission_resp {
 
-}
-message del_user_req {
-	string user_id=1[(pbex.string_bytes_len_not_eq)=0];
-	//first element must be 0
-	repeated uint32 node_id=2[(pbex.map_repeated_len_not_eq)=0];
-}
-message del_user_resp {
 }
 message add_node_req {
 	//first element must be 0

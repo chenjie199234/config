@@ -17,8 +17,7 @@ import (
 
 var _CrpcPathAdminLogin = "/config.admin/login"
 var _CrpcPathAdminSearchUser = "/config.admin/search_user"
-var _CrpcPathAdminInviteUser = "/config.admin/invite_user"
-var _CrpcPathAdminDelUser = "/config.admin/del_user"
+var _CrpcPathAdminUpdateUserPermission = "/config.admin/update_user_permission"
 var _CrpcPathAdminAddNode = "/config.admin/add_node"
 var _CrpcPathAdminUpdateNode = "/config.admin/update_node"
 var _CrpcPathAdminMoveNode = "/config.admin/move_node"
@@ -29,8 +28,7 @@ var _CrpcPathAdminCheck = "/config.admin/check"
 type AdminCrpcClient interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
 	SearchUser(context.Context, *SearchUserReq) (*SearchUserResp, error)
-	InviteUser(context.Context, *InviteUserReq) (*InviteUserResp, error)
-	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
+	UpdateUserPermission(context.Context, *UpdateUserPermissionReq) (*UpdateUserPermissionResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
 	MoveNode(context.Context, *MoveNodeReq) (*MoveNodeResp, error)
@@ -83,34 +81,16 @@ func (c *adminCrpcClient) SearchUser(ctx context.Context, req *SearchUserReq) (*
 	}
 	return resp, nil
 }
-func (c *adminCrpcClient) InviteUser(ctx context.Context, req *InviteUserReq) (*InviteUserResp, error) {
+func (c *adminCrpcClient) UpdateUserPermission(ctx context.Context, req *UpdateUserPermissionReq) (*UpdateUserPermissionResp, error) {
 	if req == nil {
 		return nil, error1.ErrReq
 	}
 	reqd, _ := proto.Marshal(req)
-	respd, e := c.cc.Call(ctx, _CrpcPathAdminInviteUser, reqd, metadata.GetMetadata(ctx))
+	respd, e := c.cc.Call(ctx, _CrpcPathAdminUpdateUserPermission, reqd, metadata.GetMetadata(ctx))
 	if e != nil {
 		return nil, e
 	}
-	resp := new(InviteUserResp)
-	if len(respd) == 0 {
-		return resp, nil
-	}
-	if e := proto.Unmarshal(respd, resp); e != nil {
-		return nil, error1.ErrResp
-	}
-	return resp, nil
-}
-func (c *adminCrpcClient) DelUser(ctx context.Context, req *DelUserReq) (*DelUserResp, error) {
-	if req == nil {
-		return nil, error1.ErrReq
-	}
-	reqd, _ := proto.Marshal(req)
-	respd, e := c.cc.Call(ctx, _CrpcPathAdminDelUser, reqd, metadata.GetMetadata(ctx))
-	if e != nil {
-		return nil, e
-	}
-	resp := new(DelUserResp)
+	resp := new(UpdateUserPermissionResp)
 	if len(respd) == 0 {
 		return resp, nil
 	}
@@ -231,8 +211,7 @@ func (c *adminCrpcClient) Check(ctx context.Context, req *CheckReq) (*CheckResp,
 type AdminCrpcServer interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
 	SearchUser(context.Context, *SearchUserReq) (*SearchUserResp, error)
-	InviteUser(context.Context, *InviteUserReq) (*InviteUserResp, error)
-	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
+	UpdateUserPermission(context.Context, *UpdateUserPermissionReq) (*UpdateUserPermissionResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
 	MoveNode(context.Context, *MoveNodeReq) (*MoveNodeResp, error)
@@ -279,15 +258,15 @@ func _Admin_SearchUser_CrpcHandler(handler func(context.Context, *SearchUserReq)
 		ctx.Write(respd)
 	}
 }
-func _Admin_InviteUser_CrpcHandler(handler func(context.Context, *InviteUserReq) (*InviteUserResp, error)) crpc.OutsideHandler {
+func _Admin_UpdateUserPermission_CrpcHandler(handler func(context.Context, *UpdateUserPermissionReq) (*UpdateUserPermissionResp, error)) crpc.OutsideHandler {
 	return func(ctx *crpc.Context) {
-		req := new(InviteUserReq)
+		req := new(UpdateUserPermissionReq)
 		if e := proto.Unmarshal(ctx.GetBody(), req); e != nil {
 			ctx.Abort(error1.ErrReq)
 			return
 		}
 		if errstr := req.Validate(); errstr != "" {
-			log.Error(ctx, "[/config.admin/invite_user]", errstr)
+			log.Error(ctx, "[/config.admin/update_user_permission]", errstr)
 			ctx.Abort(error1.ErrReq)
 			return
 		}
@@ -297,31 +276,7 @@ func _Admin_InviteUser_CrpcHandler(handler func(context.Context, *InviteUserReq)
 			return
 		}
 		if resp == nil {
-			resp = new(InviteUserResp)
-		}
-		respd, _ := proto.Marshal(resp)
-		ctx.Write(respd)
-	}
-}
-func _Admin_DelUser_CrpcHandler(handler func(context.Context, *DelUserReq) (*DelUserResp, error)) crpc.OutsideHandler {
-	return func(ctx *crpc.Context) {
-		req := new(DelUserReq)
-		if e := proto.Unmarshal(ctx.GetBody(), req); e != nil {
-			ctx.Abort(error1.ErrReq)
-			return
-		}
-		if errstr := req.Validate(); errstr != "" {
-			log.Error(ctx, "[/config.admin/del_user]", errstr)
-			ctx.Abort(error1.ErrReq)
-			return
-		}
-		resp, e := handler(ctx, req)
-		if e != nil {
-			ctx.Abort(e)
-			return
-		}
-		if resp == nil {
-			resp = new(DelUserResp)
+			resp = new(UpdateUserPermissionResp)
 		}
 		respd, _ := proto.Marshal(resp)
 		ctx.Write(respd)
@@ -476,8 +431,7 @@ func RegisterAdminCrpcServer(engine *crpc.CrpcServer, svc AdminCrpcServer, allmi
 	_ = allmids
 	engine.RegisterHandler(_CrpcPathAdminLogin, _Admin_Login_CrpcHandler(svc.Login))
 	engine.RegisterHandler(_CrpcPathAdminSearchUser, _Admin_SearchUser_CrpcHandler(svc.SearchUser))
-	engine.RegisterHandler(_CrpcPathAdminInviteUser, _Admin_InviteUser_CrpcHandler(svc.InviteUser))
-	engine.RegisterHandler(_CrpcPathAdminDelUser, _Admin_DelUser_CrpcHandler(svc.DelUser))
+	engine.RegisterHandler(_CrpcPathAdminUpdateUserPermission, _Admin_UpdateUserPermission_CrpcHandler(svc.UpdateUserPermission))
 	engine.RegisterHandler(_CrpcPathAdminAddNode, _Admin_AddNode_CrpcHandler(svc.AddNode))
 	engine.RegisterHandler(_CrpcPathAdminUpdateNode, _Admin_UpdateNode_CrpcHandler(svc.UpdateNode))
 	engine.RegisterHandler(_CrpcPathAdminMoveNode, _Admin_MoveNode_CrpcHandler(svc.MoveNode))

@@ -44,48 +44,39 @@ func (s *Service) SearchUser(ctx context.Context, req *api.SearchUserReq) (*api.
 	//TODO
 	return &api.SearchUserResp{}, nil
 }
-func (s *Service) InviteUser(ctx context.Context, req *api.InviteUserReq) (*api.InviteUserResp, error) {
+func (s *Service) UpdateUserPermission(ctx context.Context, req *api.UpdateUserPermissionReq) (*api.UpdateUserPermissionResp, error) {
 	if req.NodeId[0] != 0 {
 		return nil, ecode.ErrReq
 	}
-	inviteobj, e := primitive.ObjectIDFromHex(req.UserId)
+	if req.Admin {
+		//ignore canread and canwrite
+		req.Canread = false
+		req.Canwrite = false
+	} else if req.Canwrite && !req.Canread {
+		return nil, ecode.ErrReq
+	}
+	targetobj, e := primitive.ObjectIDFromHex(req.UserId)
 	if e != nil {
-		log.Error(ctx, "[InviteUser] userid:", req.UserId, "format error:", e)
+		log.Error(ctx, "[UpdateUserPermission] target userid:", req.UserId, "format error:", e)
 		return nil, ecode.ErrReq
 	}
 	md := metadata.GetMetadata(ctx)
 	userid := md["Token-Data"]
 	obj, e := primitive.ObjectIDFromHex(userid)
 	if e != nil {
-		log.Error(ctx, "[InviteUser] userid:", userid, "format error:", e)
+		log.Error(ctx, "[UpdateUserPermission] userid:", userid, "format error:", e)
 		return nil, ecode.ErrAuth
 	}
-}
-func (s *Service) DelUser(ctx context.Context, req *api.DelUserReq) (*api.DelUserResp, error) {
-	if req.NodeId[0] != 0 {
-		return nil, ecode.ErrReq
-	}
-	delobj, e := primitive.ObjectIDFromHex(req.UserId)
-	if e != nil {
-		log.Error(ctx, "[DelUser] userid:", req.UserId, "format error:", e)
-		return nil, ecode.ErrReq
-	}
-	md := metadata.GetMetadata(ctx)
-	userid := md["Token-Data"]
-	obj, e := primitive.ObjectIDFromHex(userid)
-	if e != nil {
-		log.Error(ctx, "[DelUser] userid:", userid, "format error:", e)
-		return nil, ecode.ErrAuth
-	}
-	if e := s.adminDao.MongoDelUser(ctx, obj, delobj, req.NodeId); e != nil {
-		log.Error(ctx, "[DelUser] userid:", userid, "del userid:", req.UserId, "error:", e)
+	if e = s.adminDao.MongoUpdateUserPermission(ctx, obj, targetobj, req.NodeId, req.Admin, req.Canread, req.Canwrite); e != nil {
+		log.Error(ctx, "[UpdateUserPermission] userid:", userid, "target userid:", req.UserId, "error:", e)
 		if _, ok := e.(*cerror.Error); ok {
 			return nil, e
 		}
 		return nil, ecode.ErrSystem
 	}
-	return &api.DelUserResp{}, nil
+	return &api.UpdateUserPermissionResp{}, nil
 }
+
 func (s *Service) AddNode(ctx context.Context, req *api.AddNodeReq) (*api.AddNodeResp, error) {
 	if req.PnodeId[0] != 0 {
 		return nil, ecode.ErrReq

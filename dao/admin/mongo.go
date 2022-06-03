@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"strconv"
 
 	"github.com/chenjie199234/config/ecode"
@@ -51,37 +52,12 @@ func (d *Dao) MongoGetUserPermission(ctx context.Context, userid primitive.Objec
 	return
 }
 
-func (d *Dao) MongoInviteUser(ctx context.Context, operateUserid, inviteUserid primitive.ObjectID, nodeid []uint32) (e error) {
-	var s mongo.Session
-	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
-	if e != nil {
-		return
-	}
-	defer s.EndSession(ctx)
-	sctx := mongo.NewSessionContext(ctx, s)
-	if e = s.StartTransaction(); e != nil {
-		return
-	}
-	defer func() {
-		if e != nil {
-			s.AbortTransaction(sctx)
-		} else if e = s.CommitTransaction(sctx); e != nil {
-			s.AbortTransaction(sctx)
-		}
-	}()
-	//check admin
-	var x bool
-	if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid); e != nil || !x {
-		if e == nil {
-			e = ecode.ErrPermission
-		}
-		return
-	}
-}
+var errNoChange = errors.New("no change")
 
-//if nodeid's length is 1 or 0,means delete this user
-//if nodeid's length > 1,means delete this user from this node
-func (d *Dao) MongoDelUser(ctx context.Context, operateUserid, delUserid primitive.ObjectID, nodeid []uint32) (e error) {
+//if admin is true,canread and canwrite will be ignore
+//if admin is false and canread is false too,means delete this user from this node
+//if admin is false and canwrite is true,then canread must be tree too
+func (d *Dao) MongoUpdateUserPermission(ctx context.Context, operateUserid, targetUserid primitive.ObjectID, nodeid []uint32, admin, canread, canwrite bool) (e error) {
 	var s mongo.Session
 	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
@@ -95,30 +71,77 @@ func (d *Dao) MongoDelUser(ctx context.Context, operateUserid, delUserid primiti
 	defer func() {
 		if e != nil {
 			s.AbortTransaction(sctx)
+			if e == errNoChange {
+				e = nil
+			}
 		} else if e = s.CommitTransaction(sctx); e != nil {
 			s.AbortTransaction(sctx)
 		}
 	}()
-	//check admin
-	var x bool
-	if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid); e != nil || !x {
-		if e == nil {
-			e = ecode.ErrPermission
+	if !admin && !canread {
+		//delete
+		//check admin
+		var x bool
+		if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid); e != nil || !x {
+			if e == nil {
+				e = ecode.ErrPermission
+			}
+			return
+		}
+		//all check success,delete database
+		filter := bson.M{"user_id": targetUserid}
+		for i, v := range nodeid {
+			filter["node_id."+strconv.Itoa(i)] = v
+		}
+		if _, e = d.mongo.Database("admin").Collection("usernode").DeleteMany(sctx, filter); e != nil {
+			return
+		}
+		//if node's length <= 1 means delete this user from the root
+		//this is same as delete this user completely
+		//so need to delete the account
+		if len(nodeid) <= 1 {
+			_, e = d.mongo.Database("admin").Collection("user").DeleteOne(sctx, bson.M{"_id": targetUserid})
 		}
 		return
+	} else {
+		//update
+		//check target user exist
+		var num int64
+		num, e = d.mongo.Database("admin").Collection("user").CountDocuments(sctx, bson.M{"_id": targetUserid})
+		if e != nil {
+			return
+		}
+		if num == 0 {
+			e = ecode.ErrReq
+			return
+		}
+		//get target user permission in this path
+		var r, w, x bool
+		if r, w, x, e = d.MongoGetUserPermission(sctx, targetUserid, nodeid); e != nil {
+			return
+		}
+		if x || (r == canread && w == canwrite) {
+			e = errNoChange
+			return
+		}
+		if admin {
+			//check parent path admin
+			if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid[:len(nodeid)-1]); e != nil || !x {
+				if e == nil {
+					e = ecode.ErrPermission
+				}
+				return
+			}
+		} else {
+			//check current path admin
+			if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid); e != nil || !x {
+				if e == nil {
+					e = ecode.ErrPermission
+				}
+				return
+			}
+		}
 	}
-	//all check success,delete database
-	filter := bson.M{"user_id": delUserid}
-	for i, v := range nodeid {
-		filter["node_id."+strconv.Itoa(i)] = v
-	}
-	if _, e = d.mongo.Database("admin").Collection("usernode").DeleteMany(sctx, filter); e != nil {
-		return
-	}
-	if len(nodeid) <= 1 {
-		_, e = d.mongo.Database("admin").Collection("user").DeleteOne(sctx, bson.M{"_id": delUserid})
-	}
-	return
 }
 
 //if nodeids are not empty or nil,only the node in the required nodeids will return

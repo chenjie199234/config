@@ -21,8 +21,7 @@ import (
 
 var _WebPathAdminLogin = "/config.admin/login"
 var _WebPathAdminSearchUser = "/config.admin/search_user"
-var _WebPathAdminInviteUser = "/config.admin/invite_user"
-var _WebPathAdminDelUser = "/config.admin/del_user"
+var _WebPathAdminUpdateUserPermission = "/config.admin/update_user_permission"
 var _WebPathAdminAddNode = "/config.admin/add_node"
 var _WebPathAdminUpdateNode = "/config.admin/update_node"
 var _WebPathAdminMoveNode = "/config.admin/move_node"
@@ -32,8 +31,7 @@ var _WebPathAdminListNode = "/config.admin/list_node"
 type AdminWebClient interface {
 	Login(context.Context, *LoginReq, http.Header) (*LoginResp, error)
 	SearchUser(context.Context, *SearchUserReq, http.Header) (*SearchUserResp, error)
-	InviteUser(context.Context, *InviteUserReq, http.Header) (*InviteUserResp, error)
-	DelUser(context.Context, *DelUserReq, http.Header) (*DelUserResp, error)
+	UpdateUserPermission(context.Context, *UpdateUserPermissionReq, http.Header) (*UpdateUserPermissionResp, error)
 	AddNode(context.Context, *AddNodeReq, http.Header) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq, http.Header) (*UpdateNodeResp, error)
 	MoveNode(context.Context, *MoveNodeReq, http.Header) (*MoveNodeResp, error)
@@ -95,7 +93,7 @@ func (c *adminWebClient) SearchUser(ctx context.Context, req *SearchUserReq, hea
 	}
 	return resp, nil
 }
-func (c *adminWebClient) InviteUser(ctx context.Context, req *InviteUserReq, header http.Header) (*InviteUserResp, error) {
+func (c *adminWebClient) UpdateUserPermission(ctx context.Context, req *UpdateUserPermissionReq, header http.Header) (*UpdateUserPermissionResp, error) {
 	if req == nil {
 		return nil, error1.ErrReq
 	}
@@ -105,34 +103,11 @@ func (c *adminWebClient) InviteUser(ctx context.Context, req *InviteUserReq, hea
 	header.Set("Content-Type", "application/x-protobuf")
 	header.Set("Accept", "application/x-protobuf")
 	reqd, _ := proto.Marshal(req)
-	data, e := c.cc.Post(ctx, _WebPathAdminInviteUser, "", header, metadata.GetMetadata(ctx), reqd)
+	data, e := c.cc.Post(ctx, _WebPathAdminUpdateUserPermission, "", header, metadata.GetMetadata(ctx), reqd)
 	if e != nil {
 		return nil, e
 	}
-	resp := new(InviteUserResp)
-	if len(data) == 0 {
-		return resp, nil
-	}
-	if e := proto.Unmarshal(data, resp); e != nil {
-		return nil, error1.ErrResp
-	}
-	return resp, nil
-}
-func (c *adminWebClient) DelUser(ctx context.Context, req *DelUserReq, header http.Header) (*DelUserResp, error) {
-	if req == nil {
-		return nil, error1.ErrReq
-	}
-	if header == nil {
-		header = make(http.Header)
-	}
-	header.Set("Content-Type", "application/x-protobuf")
-	header.Set("Accept", "application/x-protobuf")
-	reqd, _ := proto.Marshal(req)
-	data, e := c.cc.Post(ctx, _WebPathAdminDelUser, "", header, metadata.GetMetadata(ctx), reqd)
-	if e != nil {
-		return nil, e
-	}
-	resp := new(DelUserResp)
+	resp := new(UpdateUserPermissionResp)
 	if len(data) == 0 {
 		return resp, nil
 	}
@@ -260,8 +235,7 @@ func (c *adminWebClient) ListNode(ctx context.Context, req *ListNodeReq, header 
 type AdminWebServer interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
 	SearchUser(context.Context, *SearchUserReq) (*SearchUserResp, error)
-	InviteUser(context.Context, *InviteUserReq) (*InviteUserResp, error)
-	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
+	UpdateUserPermission(context.Context, *UpdateUserPermissionReq) (*UpdateUserPermissionResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
 	MoveNode(context.Context, *MoveNodeReq) (*MoveNodeResp, error)
@@ -395,9 +369,9 @@ func _Admin_SearchUser_WebHandler(handler func(context.Context, *SearchUserReq) 
 		}
 	}
 }
-func _Admin_InviteUser_WebHandler(handler func(context.Context, *InviteUserReq) (*InviteUserResp, error)) web.OutsideHandler {
+func _Admin_UpdateUserPermission_WebHandler(handler func(context.Context, *UpdateUserPermissionReq) (*UpdateUserPermissionResp, error)) web.OutsideHandler {
 	return func(ctx *web.Context) {
-		req := new(InviteUserReq)
+		req := new(UpdateUserPermissionReq)
 		if strings.HasPrefix(ctx.GetContentType(), "application/json") {
 			data, e := ctx.GetBody()
 			if e != nil {
@@ -456,13 +430,6 @@ func _Admin_InviteUser_WebHandler(handler func(context.Context, *InviteUserReq) 
 					data.AppendByte(',')
 				}
 				data.Bytes()[data.Len()-1] = ']'
-			}
-			data.AppendByte(',')
-			data.AppendString("\"canwrite\":")
-			if form := ctx.GetForm("canwrite"); len(form) == 0 {
-				data.AppendString("false")
-			} else {
-				data.AppendString(form)
 			}
 			data.AppendByte(',')
 			data.AppendString("\"admin\":")
@@ -471,99 +438,19 @@ func _Admin_InviteUser_WebHandler(handler func(context.Context, *InviteUserReq) 
 			} else {
 				data.AppendString(form)
 			}
-			data.AppendByte('}')
-			if data.Len() > 2 {
-				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
-				if e != nil {
-					ctx.Abort(error1.ErrReq)
-					return
-				}
-			}
-		}
-		if errstr := req.Validate(); errstr != "" {
-			log.Error(ctx, "[/config.admin/invite_user]", errstr)
-			ctx.Abort(error1.ErrReq)
-			return
-		}
-		resp, e := handler(ctx, req)
-		ee := error1.ConvertStdError(e)
-		if ee != nil {
-			ctx.Abort(ee)
-			return
-		}
-		if resp == nil {
-			resp = new(InviteUserResp)
-		}
-		if strings.HasPrefix(ctx.GetAcceptType(), "application/x-protobuf") {
-			respd, _ := proto.Marshal(resp)
-			ctx.Write("application/x-protobuf", respd)
-		} else {
-			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
-			ctx.Write("application/json", respd)
-		}
-	}
-}
-func _Admin_DelUser_WebHandler(handler func(context.Context, *DelUserReq) (*DelUserResp, error)) web.OutsideHandler {
-	return func(ctx *web.Context) {
-		req := new(DelUserReq)
-		if strings.HasPrefix(ctx.GetContentType(), "application/json") {
-			data, e := ctx.GetBody()
-			if e != nil {
-				ctx.Abort(e)
-				return
-			}
-			if len(data) > 0 {
-				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
-				if e != nil {
-					ctx.Abort(error1.ErrReq)
-					return
-				}
-			}
-		} else if strings.HasPrefix(ctx.GetContentType(), "application/x-protobuf") {
-			data, e := ctx.GetBody()
-			if e != nil {
-				ctx.Abort(e)
-				return
-			}
-			if len(data) > 0 {
-				if e := proto.Unmarshal(data, req); e != nil {
-					ctx.Abort(error1.ErrReq)
-					return
-				}
-			}
-		} else {
-			if e := ctx.ParseForm(); e != nil {
-				ctx.Abort(error1.ErrReq)
-				return
-			}
-			data := pool.GetBuffer()
-			defer pool.PutBuffer(data)
-			data.AppendByte('{')
-			data.AppendString("\"user_id\":")
-			if form := ctx.GetForm("user_id"); len(form) == 0 {
-				data.AppendString("\"\"")
-			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
-				data.AppendByte('"')
-				data.AppendString(form)
-				data.AppendByte('"')
+			data.AppendByte(',')
+			data.AppendString("\"canread\":")
+			if form := ctx.GetForm("canread"); len(form) == 0 {
+				data.AppendString("false")
 			} else {
 				data.AppendString(form)
 			}
 			data.AppendByte(',')
-			data.AppendString("\"node_id\":")
-			if forms := ctx.GetForms("node_id"); len(forms) == 0 {
-				data.AppendString("null")
+			data.AppendString("\"canwrite\":")
+			if form := ctx.GetForm("canwrite"); len(form) == 0 {
+				data.AppendString("false")
 			} else {
-				data.AppendByte('[')
-				for _, form := range forms {
-					if len(form) == 0 {
-						data.AppendString("0")
-					} else {
-						data.AppendString(form)
-					}
-					data.AppendByte(',')
-				}
-				data.Bytes()[data.Len()-1] = ']'
+				data.AppendString(form)
 			}
 			data.AppendByte('}')
 			if data.Len() > 2 {
@@ -575,7 +462,7 @@ func _Admin_DelUser_WebHandler(handler func(context.Context, *DelUserReq) (*DelU
 			}
 		}
 		if errstr := req.Validate(); errstr != "" {
-			log.Error(ctx, "[/config.admin/del_user]", errstr)
+			log.Error(ctx, "[/config.admin/update_user_permission]", errstr)
 			ctx.Abort(error1.ErrReq)
 			return
 		}
@@ -586,7 +473,7 @@ func _Admin_DelUser_WebHandler(handler func(context.Context, *DelUserReq) (*DelU
 			return
 		}
 		if resp == nil {
-			resp = new(DelUserResp)
+			resp = new(UpdateUserPermissionResp)
 		}
 		if strings.HasPrefix(ctx.GetAcceptType(), "application/x-protobuf") {
 			respd, _ := proto.Marshal(resp)
@@ -1099,21 +986,8 @@ func RegisterAdminWebServer(engine *web.WebServer, svc AdminWebServer, allmids m
 				panic("missing midware:" + v)
 			}
 		}
-		mids = append(mids, _Admin_InviteUser_WebHandler(svc.InviteUser))
-		engine.Post(_WebPathAdminInviteUser, mids...)
-	}
-	{
-		requiredMids := []string{"token"}
-		mids := make([]web.OutsideHandler, 0, 2)
-		for _, v := range requiredMids {
-			if mid, ok := allmids[v]; ok {
-				mids = append(mids, mid)
-			} else {
-				panic("missing midware:" + v)
-			}
-		}
-		mids = append(mids, _Admin_DelUser_WebHandler(svc.DelUser))
-		engine.Post(_WebPathAdminDelUser, mids...)
+		mids = append(mids, _Admin_UpdateUserPermission_WebHandler(svc.UpdateUserPermission))
+		engine.Post(_WebPathAdminUpdateUserPermission, mids...)
 	}
 	{
 		requiredMids := []string{"token"}

@@ -52,7 +52,7 @@ Success: httpcode:200
 }
 ------------------------------------------------------------------------------------------------------------
 ```
-### /config.admin/invite_user
+### /config.admin/update_user_permission
 
 #### Req:
 ```
@@ -66,39 +66,14 @@ Content-Type: application/json
 	//uint32
 	//element num must > 1
 	"node_id":[1,2],
-	"canwrite":true,
+	//if this is true,canread and canwrite will be ignore
 	//if need to give this user admin permission
 	//the operater must be admin in this node's parent's path
-	"admin":true
-}
-------------------------------------------------------------------------------------------------------------
-```
-#### Resp:
-```
-Fail:    httpcode:4xx/5xx
-------------------------------------------------------------------------------------------------------------
-{"code":123,"msg":"error message"}
-------------------------------------------------------------------------------------------------------------
-Success: httpcode:200
-------------------------------------------------------------------------------------------------------------
-{
-}
-------------------------------------------------------------------------------------------------------------
-```
-### /config.admin/del_user
-
-#### Req:
-```
-Method:       POST
-Content-Type: application/json
-------------------------------------------------------------------------------------------------------------
-{
-	//value length must != 0
-	"user_id":"str",
-	//first element must be 0
-	//uint32
-	//element num must != 0
-	"node_id":[1,2]
+	"admin":true,
+	//if admin is false and this is false too,means delete this user from this node
+	"canread":true,
+	//if admin is false and this is true,then the canread must be true too
+	"canwrite":true
 }
 ------------------------------------------------------------------------------------------------------------
 ```

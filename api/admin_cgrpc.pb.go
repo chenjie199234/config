@@ -16,8 +16,7 @@ import (
 
 var _CGrpcPathAdminLogin = "/config.admin/login"
 var _CGrpcPathAdminSearchUser = "/config.admin/search_user"
-var _CGrpcPathAdminInviteUser = "/config.admin/invite_user"
-var _CGrpcPathAdminDelUser = "/config.admin/del_user"
+var _CGrpcPathAdminUpdateUserPermission = "/config.admin/update_user_permission"
 var _CGrpcPathAdminAddNode = "/config.admin/add_node"
 var _CGrpcPathAdminUpdateNode = "/config.admin/update_node"
 var _CGrpcPathAdminMoveNode = "/config.admin/move_node"
@@ -28,8 +27,7 @@ var _CGrpcPathAdminCheck = "/config.admin/check"
 type AdminCGrpcClient interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
 	SearchUser(context.Context, *SearchUserReq) (*SearchUserResp, error)
-	InviteUser(context.Context, *InviteUserReq) (*InviteUserResp, error)
-	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
+	UpdateUserPermission(context.Context, *UpdateUserPermissionReq) (*UpdateUserPermissionResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
 	MoveNode(context.Context, *MoveNodeReq) (*MoveNodeResp, error)
@@ -66,22 +64,12 @@ func (c *adminCGrpcClient) SearchUser(ctx context.Context, req *SearchUserReq) (
 	}
 	return resp, nil
 }
-func (c *adminCGrpcClient) InviteUser(ctx context.Context, req *InviteUserReq) (*InviteUserResp, error) {
+func (c *adminCGrpcClient) UpdateUserPermission(ctx context.Context, req *UpdateUserPermissionReq) (*UpdateUserPermissionResp, error) {
 	if req == nil {
 		return nil, error1.ErrReq
 	}
-	resp := new(InviteUserResp)
-	if e := c.cc.Call(ctx, _CGrpcPathAdminInviteUser, req, resp, metadata.GetMetadata(ctx)); e != nil {
-		return nil, e
-	}
-	return resp, nil
-}
-func (c *adminCGrpcClient) DelUser(ctx context.Context, req *DelUserReq) (*DelUserResp, error) {
-	if req == nil {
-		return nil, error1.ErrReq
-	}
-	resp := new(DelUserResp)
-	if e := c.cc.Call(ctx, _CGrpcPathAdminDelUser, req, resp, metadata.GetMetadata(ctx)); e != nil {
+	resp := new(UpdateUserPermissionResp)
+	if e := c.cc.Call(ctx, _CGrpcPathAdminUpdateUserPermission, req, resp, metadata.GetMetadata(ctx)); e != nil {
 		return nil, e
 	}
 	return resp, nil
@@ -150,8 +138,7 @@ func (c *adminCGrpcClient) Check(ctx context.Context, req *CheckReq) (*CheckResp
 type AdminCGrpcServer interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
 	SearchUser(context.Context, *SearchUserReq) (*SearchUserResp, error)
-	InviteUser(context.Context, *InviteUserReq) (*InviteUserResp, error)
-	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
+	UpdateUserPermission(context.Context, *UpdateUserPermissionReq) (*UpdateUserPermissionResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
 	MoveNode(context.Context, *MoveNodeReq) (*MoveNodeResp, error)
@@ -196,15 +183,15 @@ func _Admin_SearchUser_CGrpcHandler(handler func(context.Context, *SearchUserReq
 		ctx.Write(resp)
 	}
 }
-func _Admin_InviteUser_CGrpcHandler(handler func(context.Context, *InviteUserReq) (*InviteUserResp, error)) cgrpc.OutsideHandler {
+func _Admin_UpdateUserPermission_CGrpcHandler(handler func(context.Context, *UpdateUserPermissionReq) (*UpdateUserPermissionResp, error)) cgrpc.OutsideHandler {
 	return func(ctx *cgrpc.Context) {
-		req := new(InviteUserReq)
+		req := new(UpdateUserPermissionReq)
 		if ctx.DecodeReq(req) != nil {
 			ctx.Abort(error1.ErrReq)
 			return
 		}
 		if errstr := req.Validate(); errstr != "" {
-			log.Error(ctx, "[/config.admin/invite_user]", errstr)
+			log.Error(ctx, "[/config.admin/update_user_permission]", errstr)
 			ctx.Abort(error1.ErrReq)
 			return
 		}
@@ -214,30 +201,7 @@ func _Admin_InviteUser_CGrpcHandler(handler func(context.Context, *InviteUserReq
 			return
 		}
 		if resp == nil {
-			resp = new(InviteUserResp)
-		}
-		ctx.Write(resp)
-	}
-}
-func _Admin_DelUser_CGrpcHandler(handler func(context.Context, *DelUserReq) (*DelUserResp, error)) cgrpc.OutsideHandler {
-	return func(ctx *cgrpc.Context) {
-		req := new(DelUserReq)
-		if ctx.DecodeReq(req) != nil {
-			ctx.Abort(error1.ErrReq)
-			return
-		}
-		if errstr := req.Validate(); errstr != "" {
-			log.Error(ctx, "[/config.admin/del_user]", errstr)
-			ctx.Abort(error1.ErrReq)
-			return
-		}
-		resp, e := handler(ctx, req)
-		if e != nil {
-			ctx.Abort(e)
-			return
-		}
-		if resp == nil {
-			resp = new(DelUserResp)
+			resp = new(UpdateUserPermissionResp)
 		}
 		ctx.Write(resp)
 	}
@@ -385,8 +349,7 @@ func RegisterAdminCGrpcServer(engine *cgrpc.CGrpcServer, svc AdminCGrpcServer, a
 	_ = allmids
 	engine.RegisterHandler("config.admin", "login", _Admin_Login_CGrpcHandler(svc.Login))
 	engine.RegisterHandler("config.admin", "search_user", _Admin_SearchUser_CGrpcHandler(svc.SearchUser))
-	engine.RegisterHandler("config.admin", "invite_user", _Admin_InviteUser_CGrpcHandler(svc.InviteUser))
-	engine.RegisterHandler("config.admin", "del_user", _Admin_DelUser_CGrpcHandler(svc.DelUser))
+	engine.RegisterHandler("config.admin", "update_user_permission", _Admin_UpdateUserPermission_CGrpcHandler(svc.UpdateUserPermission))
 	engine.RegisterHandler("config.admin", "add_node", _Admin_AddNode_CGrpcHandler(svc.AddNode))
 	engine.RegisterHandler("config.admin", "update_node", _Admin_UpdateNode_CGrpcHandler(svc.UpdateNode))
 	engine.RegisterHandler("config.admin", "move_node", _Admin_MoveNode_CGrpcHandler(svc.MoveNode))

@@ -21,7 +21,6 @@ func (d *Dao) initmongo() error {
 		NodeName:     "root",
 		NodeData:     "",
 		CurNodeIndex: 0,
-		Children:     []uint32{},
 	})
 	if e != nil && !mongo.IsDuplicateKeyError(e) {
 		return e
@@ -38,14 +37,21 @@ func (d *Dao) MongoGetUser(ctx context.Context, userid primitive.ObjectID) (*mod
 	}
 	return user, nil
 }
-
-//if nodeid's length is 1 or 0,means delete this user
-//if nodeid's length > 1,means delete this user from this node
-func (d *Dao) MongoDelUser(ctx context.Context, operateUserid primitive.ObjectID, delUserid primitive.ObjectID, nodeid []uint32) (e error) {
+func (d *Dao) MongoGetUserPermission(ctx context.Context, userid primitive.ObjectID, nodeid []uint32) (canread, canwrite, admin bool, e error) {
 	noderoute := make([][]uint32, 0, len(nodeid))
 	for i := range nodeid {
 		noderoute = append(noderoute, nodeid[:i+1])
 	}
+	var usernodes *model.UserNodes
+	usernodes, e = d.MongoGetUserNodes(ctx, userid, noderoute)
+	if e != nil {
+		return
+	}
+	canread, canwrite, admin = usernodes.CheckNode(nodeid)
+	return
+}
+
+func (d *Dao) MongoInviteUser(ctx context.Context, operateUserid, inviteUserid primitive.ObjectID, nodeid []uint32) (e error) {
 	var s mongo.Session
 	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
@@ -64,13 +70,41 @@ func (d *Dao) MongoDelUser(ctx context.Context, operateUserid primitive.ObjectID
 		}
 	}()
 	//check admin
-	var usernodes *model.UserNodes
-	usernodes, e = d.MongoGetUserNodes(sctx, operateUserid, noderoute)
+	var x bool
+	if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid); e != nil || !x {
+		if e == nil {
+			e = ecode.ErrPermission
+		}
+		return
+	}
+}
+
+//if nodeid's length is 1 or 0,means delete this user
+//if nodeid's length > 1,means delete this user from this node
+func (d *Dao) MongoDelUser(ctx context.Context, operateUserid, delUserid primitive.ObjectID, nodeid []uint32) (e error) {
+	var s mongo.Session
+	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
 		return
 	}
-	if _, _, x := usernodes.CheckNode(nodeid); !x {
-		e = ecode.ErrPermission
+	defer s.EndSession(ctx)
+	sctx := mongo.NewSessionContext(ctx, s)
+	if e = s.StartTransaction(); e != nil {
+		return
+	}
+	defer func() {
+		if e != nil {
+			s.AbortTransaction(sctx)
+		} else if e = s.CommitTransaction(sctx); e != nil {
+			s.AbortTransaction(sctx)
+		}
+	}()
+	//check admin
+	var x bool
+	if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid); e != nil || !x {
+		if e == nil {
+			e = ecode.ErrPermission
+		}
 		return
 	}
 	//all check success,delete database
@@ -154,11 +188,8 @@ func (d *Dao) MongoGetNodeUsers(ctx context.Context, nodeid []uint32, userids []
 	}
 	return result, cursor.Err()
 }
+
 func (d *Dao) MongoAddNode(ctx context.Context, operateUserid primitive.ObjectID, pnodeid []uint32, name, data string) (e error) {
-	noderoute := make([][]uint32, 0, len(pnodeid))
-	for i := range pnodeid {
-		noderoute = append(noderoute, pnodeid[:i+1])
-	}
 	var s mongo.Session
 	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
@@ -186,13 +217,11 @@ func (d *Dao) MongoAddNode(ctx context.Context, operateUserid primitive.ObjectID
 		return
 	}
 	//check admin
-	var usernodes *model.UserNodes
-	usernodes, e = d.MongoGetUserNodes(sctx, operateUserid, noderoute)
-	if e != nil {
-		return
-	}
-	if _, _, x := usernodes.CheckNode(pnodeid); !x {
-		e = ecode.ErrPermission
+	var x bool
+	if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, pnodeid); e != nil || !x {
+		if e == nil {
+			e = ecode.ErrPermission
+		}
 		return
 	}
 	//all check success,modify database
@@ -201,28 +230,15 @@ func (d *Dao) MongoAddNode(ctx context.Context, operateUserid primitive.ObjectID
 		NodeName:     name,
 		NodeData:     data,
 		CurNodeIndex: 0,
-		Children:     []uint32{},
 	}); e != nil {
 		return
 	}
-	updater := bson.M{
-		"$set": bson.M{
-			"cur_node_index": parent.CurNodeIndex + 1,
-		},
-		"$push": bson.M{
-			"children": parent.CurNodeIndex + 1,
-		},
-	}
-	if _, e = d.mongo.Database("admin").Collection("node").UpdateOne(sctx, bson.M{"node_id": pnodeid}, updater); e != nil {
+	if _, e = d.mongo.Database("admin").Collection("node").UpdateOne(sctx, bson.M{"node_id": pnodeid}, bson.M{"$inc": bson.M{"cur_node_index": 1}}); e != nil {
 		return
 	}
 	return
 }
 func (d *Dao) MongoUpdateNode(ctx context.Context, operateUserid primitive.ObjectID, nodeid []uint32, name, data string) (e error) {
-	noderoute := make([][]uint32, 0, len(nodeid))
-	for i := range nodeid {
-		noderoute = append(noderoute, nodeid[:i+1])
-	}
 	var s mongo.Session
 	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
@@ -241,32 +257,101 @@ func (d *Dao) MongoUpdateNode(ctx context.Context, operateUserid primitive.Objec
 		}
 	}()
 	//check admin
-	var usernodes *model.UserNodes
-	usernodes, e = d.MongoGetUserNodes(sctx, operateUserid, noderoute)
-	if e != nil {
-		return
-	}
-	if _, _, x := usernodes.CheckNode(nodeid); !x {
-		e = ecode.ErrPermission
+	var x bool
+	if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid); e != nil || !x {
+		if e == nil {
+			e = ecode.ErrPermission
+		}
 		return
 	}
 	//all check success,update database
 	_, e = d.mongo.Database("admin").Collection("node").UpdateOne(sctx, bson.M{"node_id": nodeid}, bson.M{"$set": bson.M{"node_name": name, "node_data": data}})
 	return
 }
-func (d *Dao) MongoListNode(ctx context.Context, operateUserid primitive.ObjectID, pnodeid []uint32) (nodes []*model.Node, e error) {
-	//check canread or admin
-	noderoute := make([][]uint32, 0, len(pnodeid))
-	for i := range pnodeid {
-		noderoute = append(noderoute, pnodeid[:i+1])
-	}
-	var usernodes *model.UserNodes
-	usernodes, e = d.MongoGetUserNodes(ctx, operateUserid, noderoute)
+func (d *Dao) MongoMoveNode(ctx context.Context, operateUserid primitive.ObjectID, nodeid, pnodeid []uint32) (e error) {
+	var s mongo.Session
+	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
 		return
 	}
-	if r, _, x := usernodes.CheckNode(pnodeid); !r && !x {
-		e = ecode.ErrPermission
+	defer s.EndSession(ctx)
+	sctx := mongo.NewSessionContext(ctx, s)
+	if e = s.StartTransaction(); e != nil {
+		return
+	}
+	defer func() {
+		if e != nil {
+			s.AbortTransaction(sctx)
+		} else if e = s.CommitTransaction(sctx); e != nil {
+			s.AbortTransaction(sctx)
+		}
+	}()
+	//check self exist
+	var self int64
+	self, e = d.mongo.Database("admin").Collection("node").CountDocuments(sctx, bson.M{"node_id": nodeid})
+	if e != nil {
+		return
+	}
+	if self == 0 {
+		e = ecode.ErrReq
+		return
+	}
+	//check parent exist
+	parent := &model.Node{}
+	if e = d.mongo.Database("admin").Collection("node").FindOne(sctx, bson.M{"node_id": pnodeid}).Decode(parent); e != nil {
+		if e == mongo.ErrNoDocuments {
+			e = ecode.ErrReq
+		}
+		return
+	}
+	//check admin in current path
+	var x bool
+	if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid); e != nil || !x {
+		if e == nil {
+			e = ecode.ErrPermission
+		}
+		return
+	}
+	//check admin in new path
+	if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, pnodeid); e != nil || !x {
+		if e == nil {
+			e = ecode.ErrPermission
+		}
+		return
+	}
+	//update the new parent
+	if _, e = d.mongo.Database("admin").Collection("node").UpdateOne(sctx, bson.M{"node_id": pnodeid}, bson.M{"$inc": bson.M{"cur_node_index": 1}}); e != nil {
+		return
+	}
+	filter := bson.M{}
+	unset := bson.M{}
+	for i, v := range nodeid {
+		filter["node_id."+strconv.Itoa(i)] = v
+		unset["node_id."+strconv.Itoa(i)] = 1
+	}
+	updater := bson.A{
+		bson.M{"$unset": unset},
+		bson.M{"$push": bson.M{
+			"$each":     append(parent.NodeId, parent.CurNodeIndex+1),
+			"$position": 0,
+		}},
+		bson.M{"$pull": bson.M{"node_id": nil}},
+	}
+	//update the node
+	if _, e = d.mongo.Database("admin").Collection("node").UpdateMany(sctx, filter, updater); e != nil {
+		return
+	}
+	//update the usernode
+	_, e = d.mongo.Database("admin").Collection("usernode").UpdateMany(sctx, filter, updater)
+	return
+}
+func (d *Dao) MongoListNode(ctx context.Context, operateUserid primitive.ObjectID, pnodeid []uint32) (nodes []*model.Node, e error) {
+	//check canread or admin
+	var r, x bool
+	if r, _, x, e = d.MongoGetUserPermission(ctx, operateUserid, pnodeid); e != nil || (!x && !r) {
+		if e == nil {
+			e = ecode.ErrPermission
+		}
 		return
 	}
 	//all check success,query database
@@ -292,10 +377,6 @@ func (d *Dao) MongoListNode(ctx context.Context, operateUserid primitive.ObjectI
 	return
 }
 func (d *Dao) MongoDeleteNode(ctx context.Context, operateUserid primitive.ObjectID, nodeid []uint32) (e error) {
-	noderoute := make([][]uint32, 0, len(nodeid))
-	for i := range nodeid {
-		noderoute = append(noderoute, nodeid[:i+1])
-	}
 	var s mongo.Session
 	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
@@ -314,13 +395,11 @@ func (d *Dao) MongoDeleteNode(ctx context.Context, operateUserid primitive.Objec
 		}
 	}()
 	//check admin
-	var usernodes *model.UserNodes
-	usernodes, e = d.MongoGetUserNodes(sctx, operateUserid, noderoute)
-	if e != nil {
-		return
-	}
-	if _, _, x := usernodes.CheckNode(nodeid); !x {
-		e = ecode.ErrPermission
+	var x bool
+	if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid); e != nil || !x {
+		if e == nil {
+			e = ecode.ErrPermission
+		}
 		return
 	}
 	//all check success,delete database
@@ -334,8 +413,5 @@ func (d *Dao) MongoDeleteNode(ctx context.Context, operateUserid primitive.Objec
 	if _, e = d.mongo.Database("admin").Collection("usernode").DeleteMany(sctx, delfilter); e != nil {
 		return
 	}
-	pnodeid := nodeid[:len(nodeid)-1]
-	updater := bson.M{"$pull": bson.M{"children": nodeid[len(nodeid)-1]}}
-	_, e = d.mongo.Database("admin").Collection("node").UpdateOne(sctx, bson.M{"node_id": pnodeid}, updater)
 	return
 }

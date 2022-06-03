@@ -20,17 +20,23 @@ import (
 )
 
 var _WebPathAdminLogin = "/config.admin/login"
+var _WebPathAdminSearchUser = "/config.admin/search_user"
+var _WebPathAdminInviteUser = "/config.admin/invite_user"
 var _WebPathAdminDelUser = "/config.admin/del_user"
 var _WebPathAdminAddNode = "/config.admin/add_node"
 var _WebPathAdminUpdateNode = "/config.admin/update_node"
+var _WebPathAdminMoveNode = "/config.admin/move_node"
 var _WebPathAdminDelNode = "/config.admin/del_node"
 var _WebPathAdminListNode = "/config.admin/list_node"
 
 type AdminWebClient interface {
 	Login(context.Context, *LoginReq, http.Header) (*LoginResp, error)
+	SearchUser(context.Context, *SearchUserReq, http.Header) (*SearchUserResp, error)
+	InviteUser(context.Context, *InviteUserReq, http.Header) (*InviteUserResp, error)
 	DelUser(context.Context, *DelUserReq, http.Header) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq, http.Header) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq, http.Header) (*UpdateNodeResp, error)
+	MoveNode(context.Context, *MoveNodeReq, http.Header) (*MoveNodeResp, error)
 	DelNode(context.Context, *DelNodeReq, http.Header) (*DelNodeResp, error)
 	ListNode(context.Context, *ListNodeReq, http.Header) (*ListNodeResp, error)
 }
@@ -58,6 +64,52 @@ func (c *adminWebClient) Login(ctx context.Context, req *LoginReq, header http.H
 		return nil, e
 	}
 	resp := new(LoginResp)
+	if len(data) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(data, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
+func (c *adminWebClient) SearchUser(ctx context.Context, req *SearchUserReq, header http.Header) (*SearchUserResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	if header == nil {
+		header = make(http.Header)
+	}
+	header.Set("Content-Type", "application/x-protobuf")
+	header.Set("Accept", "application/x-protobuf")
+	reqd, _ := proto.Marshal(req)
+	data, e := c.cc.Post(ctx, _WebPathAdminSearchUser, "", header, metadata.GetMetadata(ctx), reqd)
+	if e != nil {
+		return nil, e
+	}
+	resp := new(SearchUserResp)
+	if len(data) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(data, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
+func (c *adminWebClient) InviteUser(ctx context.Context, req *InviteUserReq, header http.Header) (*InviteUserResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	if header == nil {
+		header = make(http.Header)
+	}
+	header.Set("Content-Type", "application/x-protobuf")
+	header.Set("Accept", "application/x-protobuf")
+	reqd, _ := proto.Marshal(req)
+	data, e := c.cc.Post(ctx, _WebPathAdminInviteUser, "", header, metadata.GetMetadata(ctx), reqd)
+	if e != nil {
+		return nil, e
+	}
+	resp := new(InviteUserResp)
 	if len(data) == 0 {
 		return resp, nil
 	}
@@ -135,6 +187,29 @@ func (c *adminWebClient) UpdateNode(ctx context.Context, req *UpdateNodeReq, hea
 	}
 	return resp, nil
 }
+func (c *adminWebClient) MoveNode(ctx context.Context, req *MoveNodeReq, header http.Header) (*MoveNodeResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	if header == nil {
+		header = make(http.Header)
+	}
+	header.Set("Content-Type", "application/x-protobuf")
+	header.Set("Accept", "application/x-protobuf")
+	reqd, _ := proto.Marshal(req)
+	data, e := c.cc.Post(ctx, _WebPathAdminMoveNode, "", header, metadata.GetMetadata(ctx), reqd)
+	if e != nil {
+		return nil, e
+	}
+	resp := new(MoveNodeResp)
+	if len(data) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(data, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
 func (c *adminWebClient) DelNode(ctx context.Context, req *DelNodeReq, header http.Header) (*DelNodeResp, error) {
 	if req == nil {
 		return nil, error1.ErrReq
@@ -184,9 +259,12 @@ func (c *adminWebClient) ListNode(ctx context.Context, req *ListNodeReq, header 
 
 type AdminWebServer interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
+	SearchUser(context.Context, *SearchUserReq) (*SearchUserResp, error)
+	InviteUser(context.Context, *InviteUserReq) (*InviteUserResp, error)
 	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
+	MoveNode(context.Context, *MoveNodeReq) (*MoveNodeResp, error)
 	DelNode(context.Context, *DelNodeReq) (*DelNodeResp, error)
 	ListNode(context.Context, *ListNodeReq) (*ListNodeResp, error)
 }
@@ -244,6 +322,177 @@ func _Admin_Login_WebHandler(handler func(context.Context, *LoginReq) (*LoginRes
 		}
 		if resp == nil {
 			resp = new(LoginResp)
+		}
+		if strings.HasPrefix(ctx.GetAcceptType(), "application/x-protobuf") {
+			respd, _ := proto.Marshal(resp)
+			ctx.Write("application/x-protobuf", respd)
+		} else {
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			ctx.Write("application/json", respd)
+		}
+	}
+}
+func _Admin_SearchUser_WebHandler(handler func(context.Context, *SearchUserReq) (*SearchUserResp, error)) web.OutsideHandler {
+	return func(ctx *web.Context) {
+		req := new(SearchUserReq)
+		if strings.HasPrefix(ctx.GetContentType(), "application/json") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else if strings.HasPrefix(ctx.GetContentType(), "application/x-protobuf") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				if e := proto.Unmarshal(data, req); e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else {
+			if e := ctx.ParseForm(); e != nil {
+				ctx.Abort(error1.ErrReq)
+				return
+			}
+			data := pool.GetBuffer()
+			defer pool.PutBuffer(data)
+			data.AppendByte('{')
+			data.AppendByte('}')
+			if data.Len() > 2 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		}
+		resp, e := handler(ctx, req)
+		ee := error1.ConvertStdError(e)
+		if ee != nil {
+			ctx.Abort(ee)
+			return
+		}
+		if resp == nil {
+			resp = new(SearchUserResp)
+		}
+		if strings.HasPrefix(ctx.GetAcceptType(), "application/x-protobuf") {
+			respd, _ := proto.Marshal(resp)
+			ctx.Write("application/x-protobuf", respd)
+		} else {
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			ctx.Write("application/json", respd)
+		}
+	}
+}
+func _Admin_InviteUser_WebHandler(handler func(context.Context, *InviteUserReq) (*InviteUserResp, error)) web.OutsideHandler {
+	return func(ctx *web.Context) {
+		req := new(InviteUserReq)
+		if strings.HasPrefix(ctx.GetContentType(), "application/json") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else if strings.HasPrefix(ctx.GetContentType(), "application/x-protobuf") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				if e := proto.Unmarshal(data, req); e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else {
+			if e := ctx.ParseForm(); e != nil {
+				ctx.Abort(error1.ErrReq)
+				return
+			}
+			data := pool.GetBuffer()
+			defer pool.PutBuffer(data)
+			data.AppendByte('{')
+			data.AppendString("\"user_id\":")
+			if form := ctx.GetForm("user_id"); len(form) == 0 {
+				data.AppendString("\"\"")
+			} else if len(form) < 2 || form[0] != '"' || form[len(form)-1] != '"' {
+				data.AppendByte('"')
+				data.AppendString(form)
+				data.AppendByte('"')
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte(',')
+			data.AppendString("\"node_id\":")
+			if forms := ctx.GetForms("node_id"); len(forms) == 0 {
+				data.AppendString("null")
+			} else {
+				data.AppendByte('[')
+				for _, form := range forms {
+					if len(form) == 0 {
+						data.AppendString("0")
+					} else {
+						data.AppendString(form)
+					}
+					data.AppendByte(',')
+				}
+				data.Bytes()[data.Len()-1] = ']'
+			}
+			data.AppendByte(',')
+			data.AppendString("\"canwrite\":")
+			if form := ctx.GetForm("canwrite"); len(form) == 0 {
+				data.AppendString("false")
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte(',')
+			data.AppendString("\"admin\":")
+			if form := ctx.GetForm("admin"); len(form) == 0 {
+				data.AppendString("false")
+			} else {
+				data.AppendString(form)
+			}
+			data.AppendByte('}')
+			if data.Len() > 2 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.admin/invite_user]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		ee := error1.ConvertStdError(e)
+		if ee != nil {
+			ctx.Abort(ee)
+			return
+		}
+		if resp == nil {
+			resp = new(InviteUserResp)
 		}
 		if strings.HasPrefix(ctx.GetAcceptType(), "application/x-protobuf") {
 			respd, _ := proto.Marshal(resp)
@@ -558,6 +807,105 @@ func _Admin_UpdateNode_WebHandler(handler func(context.Context, *UpdateNodeReq) 
 		}
 	}
 }
+func _Admin_MoveNode_WebHandler(handler func(context.Context, *MoveNodeReq) (*MoveNodeResp, error)) web.OutsideHandler {
+	return func(ctx *web.Context) {
+		req := new(MoveNodeReq)
+		if strings.HasPrefix(ctx.GetContentType(), "application/json") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data, req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else if strings.HasPrefix(ctx.GetContentType(), "application/x-protobuf") {
+			data, e := ctx.GetBody()
+			if e != nil {
+				ctx.Abort(e)
+				return
+			}
+			if len(data) > 0 {
+				if e := proto.Unmarshal(data, req); e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		} else {
+			if e := ctx.ParseForm(); e != nil {
+				ctx.Abort(error1.ErrReq)
+				return
+			}
+			data := pool.GetBuffer()
+			defer pool.PutBuffer(data)
+			data.AppendByte('{')
+			data.AppendString("\"node_id\":")
+			if forms := ctx.GetForms("node_id"); len(forms) == 0 {
+				data.AppendString("null")
+			} else {
+				data.AppendByte('[')
+				for _, form := range forms {
+					if len(form) == 0 {
+						data.AppendString("0")
+					} else {
+						data.AppendString(form)
+					}
+					data.AppendByte(',')
+				}
+				data.Bytes()[data.Len()-1] = ']'
+			}
+			data.AppendByte(',')
+			data.AppendString("\"pnode_id\":")
+			if forms := ctx.GetForms("pnode_id"); len(forms) == 0 {
+				data.AppendString("null")
+			} else {
+				data.AppendByte('[')
+				for _, form := range forms {
+					if len(form) == 0 {
+						data.AppendString("0")
+					} else {
+						data.AppendString(form)
+					}
+					data.AppendByte(',')
+				}
+				data.Bytes()[data.Len()-1] = ']'
+			}
+			data.AppendByte('}')
+			if data.Len() > 2 {
+				e := protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(data.Bytes(), req)
+				if e != nil {
+					ctx.Abort(error1.ErrReq)
+					return
+				}
+			}
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.admin/move_node]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		ee := error1.ConvertStdError(e)
+		if ee != nil {
+			ctx.Abort(ee)
+			return
+		}
+		if resp == nil {
+			resp = new(MoveNodeResp)
+		}
+		if strings.HasPrefix(ctx.GetAcceptType(), "application/x-protobuf") {
+			respd, _ := proto.Marshal(resp)
+			ctx.Write("application/x-protobuf", respd)
+		} else {
+			respd, _ := protojson.MarshalOptions{AllowPartial: true, UseProtoNames: true, UseEnumNumbers: true, EmitUnpopulated: true}.Marshal(resp)
+			ctx.Write("application/json", respd)
+		}
+	}
+}
 func _Admin_DelNode_WebHandler(handler func(context.Context, *DelNodeReq) (*DelNodeResp, error)) web.OutsideHandler {
 	return func(ctx *web.Context) {
 		req := new(DelNodeReq)
@@ -738,6 +1086,32 @@ func RegisterAdminWebServer(engine *web.WebServer, svc AdminWebServer, allmids m
 				panic("missing midware:" + v)
 			}
 		}
+		mids = append(mids, _Admin_SearchUser_WebHandler(svc.SearchUser))
+		engine.Post(_WebPathAdminSearchUser, mids...)
+	}
+	{
+		requiredMids := []string{"token"}
+		mids := make([]web.OutsideHandler, 0, 2)
+		for _, v := range requiredMids {
+			if mid, ok := allmids[v]; ok {
+				mids = append(mids, mid)
+			} else {
+				panic("missing midware:" + v)
+			}
+		}
+		mids = append(mids, _Admin_InviteUser_WebHandler(svc.InviteUser))
+		engine.Post(_WebPathAdminInviteUser, mids...)
+	}
+	{
+		requiredMids := []string{"token"}
+		mids := make([]web.OutsideHandler, 0, 2)
+		for _, v := range requiredMids {
+			if mid, ok := allmids[v]; ok {
+				mids = append(mids, mid)
+			} else {
+				panic("missing midware:" + v)
+			}
+		}
 		mids = append(mids, _Admin_DelUser_WebHandler(svc.DelUser))
 		engine.Post(_WebPathAdminDelUser, mids...)
 	}
@@ -766,6 +1140,19 @@ func RegisterAdminWebServer(engine *web.WebServer, svc AdminWebServer, allmids m
 		}
 		mids = append(mids, _Admin_UpdateNode_WebHandler(svc.UpdateNode))
 		engine.Post(_WebPathAdminUpdateNode, mids...)
+	}
+	{
+		requiredMids := []string{"token"}
+		mids := make([]web.OutsideHandler, 0, 2)
+		for _, v := range requiredMids {
+			if mid, ok := allmids[v]; ok {
+				mids = append(mids, mid)
+			} else {
+				panic("missing midware:" + v)
+			}
+		}
+		mids = append(mids, _Admin_MoveNode_WebHandler(svc.MoveNode))
+		engine.Post(_WebPathAdminMoveNode, mids...)
 	}
 	{
 		requiredMids := []string{"token"}

@@ -26,6 +26,16 @@ service admin{
 		option (pbex.method)="post";
 	}
 
+	rpc search_user(search_user_req)returns(search_user_resp){
+		option (pbex.method)="post";
+		option (pbex.web_midwares)="token";
+	}
+	
+	rpc invite_user(invite_user_req)returns(invite_user_resp){
+		option (pbex.method)="post";
+		option (pbex.web_midwares)="token";
+	}
+
 	rpc del_user(del_user_req)returns(del_user_resp){
 		option (pbex.method)="post";
 		option (pbex.web_midwares)="token";
@@ -37,6 +47,11 @@ service admin{
 	}
 
 	rpc update_node(update_node_req)returns(update_node_resp){
+		option (pbex.method)="post";
+		option (pbex.web_midwares)="token";
+	}
+
+	rpc move_node(move_node_req)returns(move_node_resp){
 		option (pbex.method)="post";
 		option (pbex.web_midwares)="token";
 	}
@@ -69,13 +84,32 @@ message login_req {
 message login_resp {
 	string token=1;
 }
+message search_user_req {
+}
+message search_user_resp {
+
+}
+message invite_user_req {
+	string user_id=1[(pbex.string_bytes_len_not_eq)=0];
+	//first element must be 0
+	repeated uint32 node_id=2[(pbex.map_repeated_len_gt)=1];
+	bool canwrite=3;
+	//if need to give this user admin permission
+	//the operater must be admin in this node's parent's path
+	bool admin=4;
+}
+message invite_user_resp {
+
+}
 message del_user_req {
 	string user_id=1[(pbex.string_bytes_len_not_eq)=0];
+	//first element must be 0
 	repeated uint32 node_id=2[(pbex.map_repeated_len_not_eq)=0];
 }
 message del_user_resp {
 }
 message add_node_req {
+	//first element must be 0
 	repeated uint32 pnode_id=1[(pbex.map_repeated_len_not_eq)=0];
 	string node_name=2[(pbex.string_bytes_len_not_eq)=0];
 	string node_data=3;
@@ -83,6 +117,7 @@ message add_node_req {
 message add_node_resp {
 }
 message update_node_req {
+	//first element must be 0
 	repeated uint32 node_id=1[(pbex.map_repeated_len_gt)=1];
 	string node_name=2[(pbex.string_bytes_len_not_eq)=0];
 	string node_data=3;
@@ -90,12 +125,23 @@ message update_node_req {
 message update_node_resp {
 
 }
+message move_node_req {
+	//first element must be 0
+	repeated uint32 node_id=1[(pbex.map_repeated_len_gt)=1];
+	//first element must be 0
+	repeated uint32 pnode_id=2[(pbex.map_repeated_len_not_eq)=0];
+}
+message move_node_resp {
+
+}
 message del_node_req {
+	//first element must be 0
 	repeated uint32 node_id=1[(pbex.map_repeated_len_gt)=1];
 }
 message del_node_resp {
 }
 message list_node_req {
+	//first element must be 0
 	repeated uint32 pnode_id=1[(pbex.map_repeated_len_not_eq)=0];
 }
 message list_node_resp {
@@ -108,6 +154,7 @@ message node_info {
 }
 message check_req {
 	string user_id=1[(pbex.string_bytes_len_not_eq)=0];
+	//first element must be 0
 	repeated uint32 node_id=2[(pbex.map_repeated_len_gt)=1];
 }
 message check_resp {

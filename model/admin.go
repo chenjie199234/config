@@ -7,7 +7,6 @@ type Node struct {
 	NodeName     string   `bson:"node_name"`
 	NodeData     string   `bson:"node_data"`
 	CurNodeIndex uint32   `bson:"cur_node_index"` //auto increment,this is for child's node_id
-	Children     []uint32 `bson:"children"`       //append(NodeId,Children[i]) is every child's nodeid
 }
 type User struct {
 	ID primitive.ObjectID `bson:"_id"` //user's id

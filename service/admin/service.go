@@ -40,6 +40,27 @@ func (s *Service) Login(ctx context.Context, req *api.LoginReq) (*api.LoginResp,
 	tokenstr := publicmids.MakeToken(config.AC.TokenSecret, "corelib", *config.EC.DeployEnv, *config.EC.RunEnv, userid, uint64(start.Unix()), uint64(end.Unix()))
 	return &api.LoginResp{Token: tokenstr}, nil
 }
+func (s *Service) SearchUser(ctx context.Context, req *api.SearchUserReq) (*api.SearchUserResp, error) {
+	//TODO
+	return &api.SearchUserResp{}, nil
+}
+func (s *Service) InviteUser(ctx context.Context, req *api.InviteUserReq) (*api.InviteUserResp, error) {
+	if req.NodeId[0] != 0 {
+		return nil, ecode.ErrReq
+	}
+	inviteobj, e := primitive.ObjectIDFromHex(req.UserId)
+	if e != nil {
+		log.Error(ctx, "[InviteUser] userid:", req.UserId, "format error:", e)
+		return nil, ecode.ErrReq
+	}
+	md := metadata.GetMetadata(ctx)
+	userid := md["Token-Data"]
+	obj, e := primitive.ObjectIDFromHex(userid)
+	if e != nil {
+		log.Error(ctx, "[InviteUser] userid:", userid, "format error:", e)
+		return nil, ecode.ErrAuth
+	}
+}
 func (s *Service) DelUser(ctx context.Context, req *api.DelUserReq) (*api.DelUserResp, error) {
 	if req.NodeId[0] != 0 {
 		return nil, ecode.ErrReq
@@ -105,6 +126,26 @@ func (s *Service) UpdateNode(ctx context.Context, req *api.UpdateNodeReq) (*api.
 	}
 	return &api.UpdateNodeResp{}, nil
 }
+func (s *Service) MoveNode(ctx context.Context, req *api.MoveNodeReq) (*api.MoveNodeResp, error) {
+	if req.NodeId[0] != 0 || req.PnodeId[0] != 0 {
+		return nil, ecode.ErrReq
+	}
+	md := metadata.GetMetadata(ctx)
+	userid := md["Token-Data"]
+	obj, e := primitive.ObjectIDFromHex(userid)
+	if e != nil {
+		log.Error(ctx, "[MoveNode] userid:", userid, "format error:", e)
+		return nil, ecode.ErrAuth
+	}
+	if e := s.adminDao.MongoMoveNode(ctx, obj, req.NodeId, req.PnodeId); e != nil {
+		log.Error(ctx, "[MoveNode] userid:", userid, "old nodeid:", req.NodeId, "new parent:", req.PnodeId, "error:", e)
+		if _, ok := e.(*cerror.Error); ok {
+			return nil, e
+		}
+		return nil, ecode.ErrSystem
+	}
+	return &api.MoveNodeResp{}, nil
+}
 func (s *Service) DelNode(ctx context.Context, req *api.DelNodeReq) (*api.DelNodeResp, error) {
 	if req.NodeId[0] != 0 {
 		return nil, ecode.ErrReq
@@ -165,11 +206,7 @@ func (s *Service) Check(ctx context.Context, req *api.CheckReq) (*api.CheckResp,
 		log.Error(ctx, "[Check] userid:", req.UserId, "format error:", e)
 		return nil, ecode.ErrReq
 	}
-	noderoute := make([][]uint32, 0, len(req.NodeId))
-	for i := range req.NodeId {
-		noderoute = append(noderoute, req.NodeId[:i+1])
-	}
-	usernodes, e := s.adminDao.MongoGetUserNodes(ctx, obj, noderoute)
+	canread, canwrite, admin, e := s.adminDao.MongoGetUserPermission(ctx, obj, req.NodeId)
 	if e != nil {
 		log.Error(ctx, "[Check] userid:", req.UserId, "nodeid:", req.NodeId, "error:", e)
 		if _, ok := e.(*cerror.Error); ok {
@@ -177,7 +214,6 @@ func (s *Service) Check(ctx context.Context, req *api.CheckReq) (*api.CheckResp,
 		}
 		return nil, ecode.ErrSystem
 	}
-	canread, canwrite, admin := usernodes.CheckNode(req.NodeId)
 	return &api.CheckResp{Canread: canread, Canwrite: canwrite, Admin: admin}, nil
 }
 

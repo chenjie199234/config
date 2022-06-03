@@ -15,18 +15,24 @@ import (
 )
 
 var _CGrpcPathAdminLogin = "/config.admin/login"
+var _CGrpcPathAdminSearchUser = "/config.admin/search_user"
+var _CGrpcPathAdminInviteUser = "/config.admin/invite_user"
 var _CGrpcPathAdminDelUser = "/config.admin/del_user"
 var _CGrpcPathAdminAddNode = "/config.admin/add_node"
 var _CGrpcPathAdminUpdateNode = "/config.admin/update_node"
+var _CGrpcPathAdminMoveNode = "/config.admin/move_node"
 var _CGrpcPathAdminDelNode = "/config.admin/del_node"
 var _CGrpcPathAdminListNode = "/config.admin/list_node"
 var _CGrpcPathAdminCheck = "/config.admin/check"
 
 type AdminCGrpcClient interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
+	SearchUser(context.Context, *SearchUserReq) (*SearchUserResp, error)
+	InviteUser(context.Context, *InviteUserReq) (*InviteUserResp, error)
 	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
+	MoveNode(context.Context, *MoveNodeReq) (*MoveNodeResp, error)
 	DelNode(context.Context, *DelNodeReq) (*DelNodeResp, error)
 	ListNode(context.Context, *ListNodeReq) (*ListNodeResp, error)
 	Check(context.Context, *CheckReq) (*CheckResp, error)
@@ -46,6 +52,26 @@ func (c *adminCGrpcClient) Login(ctx context.Context, req *LoginReq) (*LoginResp
 	}
 	resp := new(LoginResp)
 	if e := c.cc.Call(ctx, _CGrpcPathAdminLogin, req, resp, metadata.GetMetadata(ctx)); e != nil {
+		return nil, e
+	}
+	return resp, nil
+}
+func (c *adminCGrpcClient) SearchUser(ctx context.Context, req *SearchUserReq) (*SearchUserResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	resp := new(SearchUserResp)
+	if e := c.cc.Call(ctx, _CGrpcPathAdminSearchUser, req, resp, metadata.GetMetadata(ctx)); e != nil {
+		return nil, e
+	}
+	return resp, nil
+}
+func (c *adminCGrpcClient) InviteUser(ctx context.Context, req *InviteUserReq) (*InviteUserResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	resp := new(InviteUserResp)
+	if e := c.cc.Call(ctx, _CGrpcPathAdminInviteUser, req, resp, metadata.GetMetadata(ctx)); e != nil {
 		return nil, e
 	}
 	return resp, nil
@@ -76,6 +102,16 @@ func (c *adminCGrpcClient) UpdateNode(ctx context.Context, req *UpdateNodeReq) (
 	}
 	resp := new(UpdateNodeResp)
 	if e := c.cc.Call(ctx, _CGrpcPathAdminUpdateNode, req, resp, metadata.GetMetadata(ctx)); e != nil {
+		return nil, e
+	}
+	return resp, nil
+}
+func (c *adminCGrpcClient) MoveNode(ctx context.Context, req *MoveNodeReq) (*MoveNodeResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	resp := new(MoveNodeResp)
+	if e := c.cc.Call(ctx, _CGrpcPathAdminMoveNode, req, resp, metadata.GetMetadata(ctx)); e != nil {
 		return nil, e
 	}
 	return resp, nil
@@ -113,9 +149,12 @@ func (c *adminCGrpcClient) Check(ctx context.Context, req *CheckReq) (*CheckResp
 
 type AdminCGrpcServer interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
+	SearchUser(context.Context, *SearchUserReq) (*SearchUserResp, error)
+	InviteUser(context.Context, *InviteUserReq) (*InviteUserResp, error)
 	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
+	MoveNode(context.Context, *MoveNodeReq) (*MoveNodeResp, error)
 	DelNode(context.Context, *DelNodeReq) (*DelNodeResp, error)
 	ListNode(context.Context, *ListNodeReq) (*ListNodeResp, error)
 	Check(context.Context, *CheckReq) (*CheckResp, error)
@@ -135,6 +174,47 @@ func _Admin_Login_CGrpcHandler(handler func(context.Context, *LoginReq) (*LoginR
 		}
 		if resp == nil {
 			resp = new(LoginResp)
+		}
+		ctx.Write(resp)
+	}
+}
+func _Admin_SearchUser_CGrpcHandler(handler func(context.Context, *SearchUserReq) (*SearchUserResp, error)) cgrpc.OutsideHandler {
+	return func(ctx *cgrpc.Context) {
+		req := new(SearchUserReq)
+		if ctx.DecodeReq(req) != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(SearchUserResp)
+		}
+		ctx.Write(resp)
+	}
+}
+func _Admin_InviteUser_CGrpcHandler(handler func(context.Context, *InviteUserReq) (*InviteUserResp, error)) cgrpc.OutsideHandler {
+	return func(ctx *cgrpc.Context) {
+		req := new(InviteUserReq)
+		if ctx.DecodeReq(req) != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.admin/invite_user]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(InviteUserResp)
 		}
 		ctx.Write(resp)
 	}
@@ -204,6 +284,29 @@ func _Admin_UpdateNode_CGrpcHandler(handler func(context.Context, *UpdateNodeReq
 		}
 		if resp == nil {
 			resp = new(UpdateNodeResp)
+		}
+		ctx.Write(resp)
+	}
+}
+func _Admin_MoveNode_CGrpcHandler(handler func(context.Context, *MoveNodeReq) (*MoveNodeResp, error)) cgrpc.OutsideHandler {
+	return func(ctx *cgrpc.Context) {
+		req := new(MoveNodeReq)
+		if ctx.DecodeReq(req) != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.admin/move_node]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(MoveNodeResp)
 		}
 		ctx.Write(resp)
 	}
@@ -281,9 +384,12 @@ func RegisterAdminCGrpcServer(engine *cgrpc.CGrpcServer, svc AdminCGrpcServer, a
 	//avoid lint
 	_ = allmids
 	engine.RegisterHandler("config.admin", "login", _Admin_Login_CGrpcHandler(svc.Login))
+	engine.RegisterHandler("config.admin", "search_user", _Admin_SearchUser_CGrpcHandler(svc.SearchUser))
+	engine.RegisterHandler("config.admin", "invite_user", _Admin_InviteUser_CGrpcHandler(svc.InviteUser))
 	engine.RegisterHandler("config.admin", "del_user", _Admin_DelUser_CGrpcHandler(svc.DelUser))
 	engine.RegisterHandler("config.admin", "add_node", _Admin_AddNode_CGrpcHandler(svc.AddNode))
 	engine.RegisterHandler("config.admin", "update_node", _Admin_UpdateNode_CGrpcHandler(svc.UpdateNode))
+	engine.RegisterHandler("config.admin", "move_node", _Admin_MoveNode_CGrpcHandler(svc.MoveNode))
 	engine.RegisterHandler("config.admin", "del_node", _Admin_DelNode_CGrpcHandler(svc.DelNode))
 	engine.RegisterHandler("config.admin", "list_node", _Admin_ListNode_CGrpcHandler(svc.ListNode))
 	engine.RegisterHandler("config.admin", "check", _Admin_Check_CGrpcHandler(svc.Check))

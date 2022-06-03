@@ -76,8 +76,7 @@ collection: node
 	"node_id":[0,1],
 	"node_name":"",
 	"node_data":"",
-	"cur_node_index":0,//auto increment,this is for child's node_id
-	"children":[1,2],//self is [0,1],has two children [0,1,1] and [0,1,2]
+	"cur_node_index":0,//auto increment,this is for child's last node_id element
 }
 //node_id field add unique index
 

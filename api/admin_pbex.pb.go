@@ -7,6 +7,17 @@
 package api
 
 //return empty means pass
+func (m *InviteUserReq) Validate() (errstr string) {
+	if len(m.GetUserId()) == 0 {
+		return "field: user_id in object: invite_user_req check value str len not eq failed"
+	}
+	if len(m.GetNodeId()) <= 1 {
+		return "field: node_id in object: invite_user_req check len gt failed"
+	}
+	return ""
+}
+
+//return empty means pass
 func (m *DelUserReq) Validate() (errstr string) {
 	if len(m.GetUserId()) == 0 {
 		return "field: user_id in object: del_user_req check value str len not eq failed"
@@ -35,6 +46,17 @@ func (m *UpdateNodeReq) Validate() (errstr string) {
 	}
 	if len(m.GetNodeName()) == 0 {
 		return "field: node_name in object: update_node_req check value str len not eq failed"
+	}
+	return ""
+}
+
+//return empty means pass
+func (m *MoveNodeReq) Validate() (errstr string) {
+	if len(m.GetNodeId()) <= 1 {
+		return "field: node_id in object: move_node_req check len gt failed"
+	}
+	if len(m.GetPnodeId()) == 0 {
+		return "field: pnode_id in object: move_node_req check len not eq failed"
 	}
 	return ""
 }

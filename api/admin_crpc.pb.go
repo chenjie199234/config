@@ -16,18 +16,24 @@ import (
 )
 
 var _CrpcPathAdminLogin = "/config.admin/login"
+var _CrpcPathAdminSearchUser = "/config.admin/search_user"
+var _CrpcPathAdminInviteUser = "/config.admin/invite_user"
 var _CrpcPathAdminDelUser = "/config.admin/del_user"
 var _CrpcPathAdminAddNode = "/config.admin/add_node"
 var _CrpcPathAdminUpdateNode = "/config.admin/update_node"
+var _CrpcPathAdminMoveNode = "/config.admin/move_node"
 var _CrpcPathAdminDelNode = "/config.admin/del_node"
 var _CrpcPathAdminListNode = "/config.admin/list_node"
 var _CrpcPathAdminCheck = "/config.admin/check"
 
 type AdminCrpcClient interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
+	SearchUser(context.Context, *SearchUserReq) (*SearchUserResp, error)
+	InviteUser(context.Context, *InviteUserReq) (*InviteUserResp, error)
 	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
+	MoveNode(context.Context, *MoveNodeReq) (*MoveNodeResp, error)
 	DelNode(context.Context, *DelNodeReq) (*DelNodeResp, error)
 	ListNode(context.Context, *ListNodeReq) (*ListNodeResp, error)
 	Check(context.Context, *CheckReq) (*CheckResp, error)
@@ -51,6 +57,42 @@ func (c *adminCrpcClient) Login(ctx context.Context, req *LoginReq) (*LoginResp,
 		return nil, e
 	}
 	resp := new(LoginResp)
+	if len(respd) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(respd, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
+func (c *adminCrpcClient) SearchUser(ctx context.Context, req *SearchUserReq) (*SearchUserResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	reqd, _ := proto.Marshal(req)
+	respd, e := c.cc.Call(ctx, _CrpcPathAdminSearchUser, reqd, metadata.GetMetadata(ctx))
+	if e != nil {
+		return nil, e
+	}
+	resp := new(SearchUserResp)
+	if len(respd) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(respd, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
+func (c *adminCrpcClient) InviteUser(ctx context.Context, req *InviteUserReq) (*InviteUserResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	reqd, _ := proto.Marshal(req)
+	respd, e := c.cc.Call(ctx, _CrpcPathAdminInviteUser, reqd, metadata.GetMetadata(ctx))
+	if e != nil {
+		return nil, e
+	}
+	resp := new(InviteUserResp)
 	if len(respd) == 0 {
 		return resp, nil
 	}
@@ -105,6 +147,24 @@ func (c *adminCrpcClient) UpdateNode(ctx context.Context, req *UpdateNodeReq) (*
 		return nil, e
 	}
 	resp := new(UpdateNodeResp)
+	if len(respd) == 0 {
+		return resp, nil
+	}
+	if e := proto.Unmarshal(respd, resp); e != nil {
+		return nil, error1.ErrResp
+	}
+	return resp, nil
+}
+func (c *adminCrpcClient) MoveNode(ctx context.Context, req *MoveNodeReq) (*MoveNodeResp, error) {
+	if req == nil {
+		return nil, error1.ErrReq
+	}
+	reqd, _ := proto.Marshal(req)
+	respd, e := c.cc.Call(ctx, _CrpcPathAdminMoveNode, reqd, metadata.GetMetadata(ctx))
+	if e != nil {
+		return nil, e
+	}
+	resp := new(MoveNodeResp)
 	if len(respd) == 0 {
 		return resp, nil
 	}
@@ -170,9 +230,12 @@ func (c *adminCrpcClient) Check(ctx context.Context, req *CheckReq) (*CheckResp,
 
 type AdminCrpcServer interface {
 	Login(context.Context, *LoginReq) (*LoginResp, error)
+	SearchUser(context.Context, *SearchUserReq) (*SearchUserResp, error)
+	InviteUser(context.Context, *InviteUserReq) (*InviteUserResp, error)
 	DelUser(context.Context, *DelUserReq) (*DelUserResp, error)
 	AddNode(context.Context, *AddNodeReq) (*AddNodeResp, error)
 	UpdateNode(context.Context, *UpdateNodeReq) (*UpdateNodeResp, error)
+	MoveNode(context.Context, *MoveNodeReq) (*MoveNodeResp, error)
 	DelNode(context.Context, *DelNodeReq) (*DelNodeResp, error)
 	ListNode(context.Context, *ListNodeReq) (*ListNodeResp, error)
 	Check(context.Context, *CheckReq) (*CheckResp, error)
@@ -192,6 +255,49 @@ func _Admin_Login_CrpcHandler(handler func(context.Context, *LoginReq) (*LoginRe
 		}
 		if resp == nil {
 			resp = new(LoginResp)
+		}
+		respd, _ := proto.Marshal(resp)
+		ctx.Write(respd)
+	}
+}
+func _Admin_SearchUser_CrpcHandler(handler func(context.Context, *SearchUserReq) (*SearchUserResp, error)) crpc.OutsideHandler {
+	return func(ctx *crpc.Context) {
+		req := new(SearchUserReq)
+		if e := proto.Unmarshal(ctx.GetBody(), req); e != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(SearchUserResp)
+		}
+		respd, _ := proto.Marshal(resp)
+		ctx.Write(respd)
+	}
+}
+func _Admin_InviteUser_CrpcHandler(handler func(context.Context, *InviteUserReq) (*InviteUserResp, error)) crpc.OutsideHandler {
+	return func(ctx *crpc.Context) {
+		req := new(InviteUserReq)
+		if e := proto.Unmarshal(ctx.GetBody(), req); e != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.admin/invite_user]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(InviteUserResp)
 		}
 		respd, _ := proto.Marshal(resp)
 		ctx.Write(respd)
@@ -264,6 +370,30 @@ func _Admin_UpdateNode_CrpcHandler(handler func(context.Context, *UpdateNodeReq)
 		}
 		if resp == nil {
 			resp = new(UpdateNodeResp)
+		}
+		respd, _ := proto.Marshal(resp)
+		ctx.Write(respd)
+	}
+}
+func _Admin_MoveNode_CrpcHandler(handler func(context.Context, *MoveNodeReq) (*MoveNodeResp, error)) crpc.OutsideHandler {
+	return func(ctx *crpc.Context) {
+		req := new(MoveNodeReq)
+		if e := proto.Unmarshal(ctx.GetBody(), req); e != nil {
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		if errstr := req.Validate(); errstr != "" {
+			log.Error(ctx, "[/config.admin/move_node]", errstr)
+			ctx.Abort(error1.ErrReq)
+			return
+		}
+		resp, e := handler(ctx, req)
+		if e != nil {
+			ctx.Abort(e)
+			return
+		}
+		if resp == nil {
+			resp = new(MoveNodeResp)
 		}
 		respd, _ := proto.Marshal(resp)
 		ctx.Write(respd)
@@ -345,9 +475,12 @@ func RegisterAdminCrpcServer(engine *crpc.CrpcServer, svc AdminCrpcServer, allmi
 	//avoid lint
 	_ = allmids
 	engine.RegisterHandler(_CrpcPathAdminLogin, _Admin_Login_CrpcHandler(svc.Login))
+	engine.RegisterHandler(_CrpcPathAdminSearchUser, _Admin_SearchUser_CrpcHandler(svc.SearchUser))
+	engine.RegisterHandler(_CrpcPathAdminInviteUser, _Admin_InviteUser_CrpcHandler(svc.InviteUser))
 	engine.RegisterHandler(_CrpcPathAdminDelUser, _Admin_DelUser_CrpcHandler(svc.DelUser))
 	engine.RegisterHandler(_CrpcPathAdminAddNode, _Admin_AddNode_CrpcHandler(svc.AddNode))
 	engine.RegisterHandler(_CrpcPathAdminUpdateNode, _Admin_UpdateNode_CrpcHandler(svc.UpdateNode))
+	engine.RegisterHandler(_CrpcPathAdminMoveNode, _Admin_MoveNode_CrpcHandler(svc.MoveNode))
 	engine.RegisterHandler(_CrpcPathAdminDelNode, _Admin_DelNode_CrpcHandler(svc.DelNode))
 	engine.RegisterHandler(_CrpcPathAdminListNode, _Admin_ListNode_CrpcHandler(svc.ListNode))
 	engine.RegisterHandler(_CrpcPathAdminCheck, _Admin_Check_CrpcHandler(svc.Check))

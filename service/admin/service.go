@@ -48,11 +48,7 @@ func (s *Service) UpdateUserPermission(ctx context.Context, req *api.UpdateUserP
 	if req.NodeId[0] != 0 {
 		return nil, ecode.ErrReq
 	}
-	if req.Admin {
-		//ignore canread and canwrite
-		req.Canread = false
-		req.Canwrite = false
-	} else if req.Canwrite && !req.Canread {
+	if !req.Admin && req.Canwrite && !req.Canread {
 		return nil, ecode.ErrReq
 	}
 	targetobj, e := primitive.ObjectIDFromHex(req.UserId)

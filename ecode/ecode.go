@@ -23,5 +23,7 @@ var (
 	ErrWrongCipher     = cerror.MakeError(20003, http.StatusBadRequest, "wrong cipher")
 	ErrCipherLength    = cerror.MakeError(20004, http.StatusBadRequest, "cipher must be empty or 32 byte length")
 	ErrIndexNotExist   = cerror.MakeError(20005, http.StatusBadRequest, "config index doesn't exist")
-	ErrConfigFormat    = cerror.MakeError(20001, http.StatusBadRequest, "config must use json object format")
+	ErrConfigFormat    = cerror.MakeError(20006, http.StatusBadRequest, "config must use json object format")
+
+	ErrPNodeReadPermission = cerror.MakeError(30001, http.StatusBadRequest, "missing read permission on parent nodes")
 )

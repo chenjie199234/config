@@ -15,9 +15,9 @@ type User struct {
 type UserNode struct {
 	UserId primitive.ObjectID `bson:"user_id"`
 	NodeId []uint32           `bson:"node_id"`
-	R      uint32             `bson:"r"`
-	W      uint32             `bson:"w"`
-	X      uint32             `bson:"x"`
+	R      bool               `bson:"r"`
+	W      bool               `bson:"w"`
+	X      bool               `bson:"x"`
 }
 
 type UserNodes struct {

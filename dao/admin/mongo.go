@@ -58,6 +58,14 @@ var errNoChange = errors.New("no change")
 //if admin is false and canread is false too,means delete this user from this node
 //if admin is false and canwrite is true,then canread must be tree too
 func (d *Dao) MongoUpdateUserPermission(ctx context.Context, operateUserid, targetUserid primitive.ObjectID, nodeid []uint32, admin, canread, canwrite bool) (e error) {
+	if admin {
+		//ignore
+		canread = false
+		canwrite = false
+	} else if !canread && canwrite {
+		e = ecode.ErrReq
+		return
+	}
 	var s mongo.Session
 	s, e = d.mongo.StartSession(options.Session().SetDefaultReadPreference(readpref.Primary()).SetDefaultReadConcern(readconcern.Local()))
 	if e != nil {
@@ -103,45 +111,67 @@ func (d *Dao) MongoUpdateUserPermission(ctx context.Context, operateUserid, targ
 			_, e = d.mongo.Database("admin").Collection("user").DeleteOne(sctx, bson.M{"_id": targetUserid})
 		}
 		return
-	} else {
-		//update
-		//check target user exist
-		var num int64
-		num, e = d.mongo.Database("admin").Collection("user").CountDocuments(sctx, bson.M{"_id": targetUserid})
-		if e != nil {
-			return
-		}
-		if num == 0 {
-			e = ecode.ErrReq
-			return
-		}
-		//get target user permission in this path
-		var r, w, x bool
-		if r, w, x, e = d.MongoGetUserPermission(sctx, targetUserid, nodeid); e != nil {
-			return
-		}
-		if x || (r == canread && w == canwrite) {
-			e = errNoChange
-			return
-		}
-		if admin {
-			//check parent path admin
-			if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid[:len(nodeid)-1]); e != nil || !x {
-				if e == nil {
-					e = ecode.ErrPermission
-				}
-				return
-			}
-		} else {
-			//check current path admin
-			if _, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid); e != nil || !x {
-				if e == nil {
-					e = ecode.ErrPermission
-				}
-				return
-			}
-		}
 	}
+	//update
+	//check target user exist
+	var num int64
+	num, e = d.mongo.Database("admin").Collection("user").CountDocuments(sctx, bson.M{"_id": targetUserid})
+	if e != nil {
+		return
+	}
+	if num == 0 {
+		e = ecode.ErrReq
+		return
+	}
+	var r, w, x bool
+	//get target user permission on parent path
+	if r, w, x, e = d.MongoGetUserPermission(sctx, targetUserid, nodeid[:len(nodeid)-1]); e != nil {
+		return
+	}
+	if x {
+		e = errNoChange
+		return
+	}
+	if !r {
+		e = ecode.ErrPNodeReadPermission
+		return
+	}
+	//get target user permission on current path
+	if r, w, x, e = d.MongoGetUserPermission(sctx, targetUserid, nodeid); e != nil {
+		return
+	}
+	if r == canread && w == canwrite && x == admin {
+		e = errNoChange
+		return
+	}
+	if admin {
+		//check parent path admin
+		_, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid[:len(nodeid)-1])
+	} else {
+		//check current path admin
+		_, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid)
+	}
+	if e != nil || !x {
+		if e == nil {
+			e = ecode.ErrPermission
+		}
+		return
+	}
+	//all check success
+	filter := bson.M{"user_id": targetUserid, "node_id": nodeid}
+	updater := bson.M{"$set": bson.M{"r": canread, "w": canwrite, "x": admin}}
+	if _, e = d.mongo.Database("admin").Collection("usernode").UpdateOne(sctx, filter, updater, options.Update().SetUpsert(true)); e != nil {
+		return
+	}
+	if admin {
+		filter = bson.M{"user_id": targetUserid}
+		for i, v := range nodeid {
+			filter["node_id."+strconv.Itoa(i)] = v
+		}
+		filter["node_id."+strconv.Itoa(len(nodeid))] = bson.M{"$exists": true}
+		_, e = d.mongo.Database("admin").Collection("usernode").DeleteMany(sctx, filter)
+	}
+	return
 }
 
 //if nodeids are not empty or nil,only the node in the required nodeids will return
@@ -165,13 +195,13 @@ func (d *Dao) MongoGetUserNodes(ctx context.Context, userid primitive.ObjectID, 
 		if e := cursor.Decode(tmp); e != nil {
 			return nil, e
 		}
-		if tmp.R == 1 {
+		if tmp.R {
 			result.R = append(result.R, tmp.NodeId)
 		}
-		if tmp.W == 1 {
+		if tmp.W {
 			result.W = append(result.W, tmp.NodeId)
 		}
-		if tmp.X == 1 {
+		if tmp.X {
 			result.X = append(result.X, tmp.NodeId)
 		}
 	}
@@ -199,13 +229,13 @@ func (d *Dao) MongoGetNodeUsers(ctx context.Context, nodeid []uint32, userids []
 		if e := cursor.Decode(tmp); e != nil {
 			return nil, e
 		}
-		if tmp.R == 1 {
+		if tmp.R {
 			result.R = append(result.R, tmp.UserId)
 		}
-		if tmp.W == 1 {
+		if tmp.W {
 			result.W = append(result.W, tmp.UserId)
 		}
-		if tmp.X == 1 {
+		if tmp.X {
 			result.X = append(result.X, tmp.UserId)
 		}
 	}

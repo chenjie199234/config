@@ -123,9 +123,9 @@ func (d *Dao) MongoUpdateUserPermission(ctx context.Context, operateUserid, targ
 		e = ecode.ErrReq
 		return
 	}
-	var r, w, x bool
+	var r, x bool
 	//get target user permission on parent path
-	if r, w, x, e = d.MongoGetUserPermission(sctx, targetUserid, nodeid[:len(nodeid)-1]); e != nil {
+	if r, _, x, e = d.MongoGetUserPermission(sctx, targetUserid, nodeid[:len(nodeid)-1]); e != nil {
 		return
 	}
 	if x {
@@ -136,19 +136,11 @@ func (d *Dao) MongoUpdateUserPermission(ctx context.Context, operateUserid, targ
 		e = ecode.ErrPNodeReadPermission
 		return
 	}
-	//get target user permission on current path
-	if r, w, x, e = d.MongoGetUserPermission(sctx, targetUserid, nodeid); e != nil {
-		return
-	}
-	if r == canread && w == canwrite && x == admin {
-		e = errNoChange
-		return
-	}
 	if admin {
-		//check parent path admin
+		//check operate user parent path admin
 		_, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid[:len(nodeid)-1])
 	} else {
-		//check current path admin
+		//check operate user current path admin
 		_, _, x, e = d.MongoGetUserPermission(sctx, operateUserid, nodeid)
 	}
 	if e != nil || !x {
@@ -160,7 +152,12 @@ func (d *Dao) MongoUpdateUserPermission(ctx context.Context, operateUserid, targ
 	//all check success
 	filter := bson.M{"user_id": targetUserid, "node_id": nodeid}
 	updater := bson.M{"$set": bson.M{"r": canread, "w": canwrite, "x": admin}}
-	if _, e = d.mongo.Database("admin").Collection("usernode").UpdateOne(sctx, filter, updater, options.Update().SetUpsert(true)); e != nil {
+	var result *mongo.UpdateResult
+	if result, e = d.mongo.Database("admin").Collection("usernode").UpdateOne(sctx, filter, updater, options.Update().SetUpsert(true)); e != nil {
+		return
+	}
+	if result.ModifiedCount == 0 && result.UpsertedCount == 0 {
+		e = errNoChange
 		return
 	}
 	if admin {
